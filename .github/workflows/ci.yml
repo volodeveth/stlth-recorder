@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Збирати ВСЕ рішення окремо від тестів: `dotnet test` будує лише тестовий
+      # проєкт і його залежності, а застосунок серед них не значиться — і його
+      # помилки компіляції тихо не потрапляють у «зелено».
+      - name: Build
+        run: dotnet build "STLTH Recorder.sln" --configuration Release --nologo
+
+      - name: Test
+        run: dotnet test "STLTH Recorder.sln" --configuration Release --no-build --nologo
+
+      # Інструмент вимірювання перевіряється сам: числам у звіті можна довіряти лише
+      # після того, як перевірено те, що їх дає.
+      - name: Drift instrument self-test
+        run: python tools/selftest_drift.py
+
+      - name: Publish self-contained
+        run: >
+          dotnet publish src/Stlth.App/Stlth.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish --nologo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stlth-recorder-win-x64
+          path: publish/*.exe

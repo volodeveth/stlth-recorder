@@ -60,6 +60,13 @@ public partial class App : Application
                          Controller.RecoveredSessions.Count == 1
                              ? "Сесію, перервану аварійно, збережено — аудіо ціле."
                              : $"Сесій, перерваних аварійно: {Controller.RecoveredSessions.Count}. Аудіо ціле.");
+
+            // Сесія, обірвана крахом, зведення не встигла отримати — а послухати її
+            // хочеться саме тоді, коли щось пішло не так.
+            if (Settings.BuildMixdown)
+            {
+                MixdownService.RebuildAll(Controller.Store, Controller.RecoveredSessions);
+            }
         }
 
         RefreshPermissionInBackground();
