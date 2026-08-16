@@ -16,6 +16,14 @@ public sealed class TrackRecorder : IDisposable
     private readonly TimelineAccountant _timeline;
     private readonly object _gate = new();
 
+    /// <summary>
+    /// Пакети приходять із фонових потоків, а закривається доріжка з іншого. Watchdog
+    /// може перезапустити потік рівно тоді, коли сесію вже зупиняють, — і тоді пакет,
+    /// що спізнився, впав би у закритий файл. Втратити останні 10 мс тиші не шкода;
+    /// уронити застосунок на завершенні запису — шкода.
+    /// </summary>
+    private bool _disposed;
+
     public TrackRecorder(string path, int channels, double startAt)
     {
         _writer = new WavWriter(path, channels);
@@ -39,6 +47,11 @@ public sealed class TrackRecorder : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             var pad = _timeline.FramesToInsertBefore(atSeconds, frames);
             if (pad > 0)
             {
@@ -54,6 +67,11 @@ public sealed class TrackRecorder : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             var pad = _timeline.FramesToReach(atSeconds);
             if (pad > 0)
             {
@@ -66,6 +84,12 @@ public sealed class TrackRecorder : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
             _writer.Dispose();
         }
     }

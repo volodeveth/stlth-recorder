@@ -114,6 +114,25 @@ public class TrackRecorderTests : IDisposable
     }
 
     [Fact]
+    public void A_packet_arriving_after_the_track_closed_is_dropped_not_thrown()
+    {
+        // Watchdog може перезапустити потік рівно тоді, коли сесію вже зупиняють.
+        // Втратити останні 10 мс тиші не шкода; уронити застосунок на завершенні
+        // запису — шкода.
+        var path = At("late.wav");
+        var recorder = new TrackRecorder(path, AudioFormat.MicChannels, 0);
+        Feed(recorder, AudioFormat.MicChannels, (0.0, 4800));
+        recorder.PadTo(1.0);
+        recorder.Dispose();
+
+        recorder.Write(new byte[960], 480, 1.5);
+        recorder.PadTo(2.0);
+        recorder.Dispose();
+
+        Assert.Equal(48000, WavWriter.FramesInFile(path));
+    }
+
+    [Fact]
     public void A_driver_reporting_a_stale_timestamp_does_not_stretch_the_track()
     {
         // Не гіпотетичний випадок: qpcPosition приходить від драйвера, і не кожен
