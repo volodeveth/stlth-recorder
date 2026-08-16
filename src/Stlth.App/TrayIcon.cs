@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Windows.Threading;
 using Stlth.Core;
 using Stlth.Core.Audio;
+using Stlth.Core.Meetings;
 using Stlth.Core.Permissions;
 using Stlth.Core.Storage;
 using Application = System.Windows.Application;
@@ -24,6 +25,7 @@ public sealed class TrayIcon : IDisposable
     private readonly DispatcherTimer _tick;
     private readonly Icon _idleIcon;
     private readonly Icon _recordingIcon;
+    private readonly MeetingWatcher _meetings;
 
     private ToolStripMenuItem _startStop = null!;
     private ToolStripMenuItem _status = null!;
@@ -62,6 +64,10 @@ public sealed class TrayIcon : IDisposable
         _tick.Tick += (_, _) => Refresh();
 
         _controller.Changed += (_, _) => Application.Current.Dispatcher.Invoke(Refresh);
+
+        _meetings = new MeetingWatcher();
+        _meetings.Started += OnMeetingStarted;
+        _meetings.Ended += OnMeetingEnded;
     }
 
     public void Show()
@@ -69,6 +75,61 @@ public sealed class TrayIcon : IDisposable
         BuildMenu();
         _icon.Visible = true;
         Refresh();
+
+        if (App.Settings.MeetingReminders)
+        {
+            _meetings.Start();
+        }
+    }
+
+    /// <summary>
+    /// Почалася зустріч — варто спитати, чи вмикати запис.
+    ///
+    /// Саме спитати. Продукт ніколи не вмикає і не вимикає запис сам: автостарт
+    /// писав би розмови, на які згоди не давали, а автостоп обірвав би першу ж
+    /// зустріч, у якій хтось на хвилину вимкнув мікрофон.
+    /// </summary>
+    private void OnMeetingStarted(Meeting meeting)
+    {
+        if (_controller.IsRecording)
+        {
+            return;
+        }
+
+        Application.Current.Dispatcher.Invoke(() =>
+            Notify($"Почалася зустріч у {meeting.AppName}",
+                   "Увімкнути запис? Клацніть іконку STLTH Recorder."));
+    }
+
+    /// <summary>
+    /// Зустріч завершилася, а запис триває.
+    ///
+    /// Це нагадування важливіше за перше. Забути ввімкнути — втратити розмову;
+    /// забути вимкнути — писати кімнату далі, збираючи аудіо, на яке ніхто згоди не
+    /// давав, у сесію, чий meta.json стверджує протилежне.
+    /// </summary>
+    private void OnMeetingEnded()
+    {
+        if (!_controller.IsRecording)
+        {
+            return;
+        }
+
+        Application.Current.Dispatcher.Invoke(() =>
+            Notify("Зустріч завершено", "Запис досі триває. Зупинити?"));
+    }
+
+    /// <summary>Увімкнути або вимкнути спостереження за зустрічами на льоту.</summary>
+    public void SetMeetingReminders(bool enabled)
+    {
+        if (enabled)
+        {
+            _meetings.Start();
+        }
+        else
+        {
+            _meetings.Stop();
+        }
     }
 
     public void Notify(string title, string message)
@@ -81,6 +142,7 @@ public sealed class TrayIcon : IDisposable
     public void Dispose()
     {
         _tick.Stop();
+        _meetings.Dispose();
         _icon.Visible = false;
         _icon.Dispose();
         _idleIcon.Dispose();
@@ -250,7 +312,12 @@ public sealed class TrayIcon : IDisposable
             if (_controller.LastError is { } error)
             {
                 Notify("Не вдалося почати запис", error);
+                return;
             }
+
+            // Людина щойно ухвалила рішення — питати її про ту саму зустріч удруге
+            // означало б навчити її закривати нагадування не читаючи.
+            _meetings.SuppressForCurrentMeeting();
         }
         finally
         {

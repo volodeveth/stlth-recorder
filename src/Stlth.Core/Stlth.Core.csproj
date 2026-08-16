@@ -10,5 +10,12 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Крок опитування у MeetingWatcher приймає час ззовні саме для того, щоб
+         правила нагадувань можна було перевірити без годинника і без заліза. Це
+         внутрішня деталь, а не частина API застосунку. -->
+    <InternalsVisibleTo Include="Stlth.Core.Tests" />
+  </ItemGroup>
+
 </Project>
 

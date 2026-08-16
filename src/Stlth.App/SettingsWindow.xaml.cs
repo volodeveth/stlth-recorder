@@ -40,6 +40,8 @@ public partial class SettingsWindow : Window
         App.Settings.BuildMixdown = Mixdown.IsChecked == true;
         App.Settings.Save();
 
+        App.ApplyMeetingReminders();
+
         // Реєстр правиться одразу, а не «колись при виході»: перемикач, який не
         // подіяв до перезапуску, читається як зламаний.
         Core.Settings.Autostart.Apply(App.Settings.StartWithWindows,

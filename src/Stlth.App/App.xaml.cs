@@ -20,6 +20,14 @@ public partial class App : Application
 
     public static RecorderController Controller { get; private set; } = null!;
 
+    /// <summary>
+    /// Привести спостереження за зустрічами у відповідність до налаштування.
+    ///
+    /// Перемикач, який подіє лише після перезапуску, читається як зламаний.
+    /// </summary>
+    public static void ApplyMeetingReminders()
+        => ((App)Current)._tray?.SetMeetingReminders(Settings.MeetingReminders);
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);

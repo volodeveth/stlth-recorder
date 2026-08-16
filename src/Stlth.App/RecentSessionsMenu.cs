@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows.Forms;
 using Stlth.Core.Mixdown;
 using Stlth.Core.Storage;
+using Stlth.Core.Transcription;
 
 namespace Stlth.App;
 
@@ -60,12 +61,7 @@ internal static class RecentSessionsMenu
                 (_, _) => OpenFile(mix)));
         }
 
-        var transcript = Path.Combine(dir, "transcript.md");
-        if (File.Exists(transcript))
-        {
-            item.DropDownItems.Add(new ToolStripMenuItem("Відкрити транскрипт", null,
-                (_, _) => OpenFile(transcript)));
-        }
+        item.DropDownItems.Add(TranscriptionItem(dir, onChanged));
 
         item.DropDownItems.Add(new ToolStripSeparator());
         item.DropDownItems.Add(new ToolStripMenuItem("Видалити", null, (_, _) =>
@@ -86,6 +82,53 @@ internal static class RecentSessionsMenu
         }));
 
         return item;
+    }
+
+    /// <summary>
+    /// Транскрибація з'являється лише тоді, коли її справді можна запустити.
+    ///
+    /// Якщо моделей немає, пункт не зникає мовчки, а прямо каже, що зробити: пункт,
+    /// якого немає, читається як «продукт цього не вміє».
+    /// </summary>
+    private static ToolStripItem TranscriptionItem(string dir, Action onChanged)
+    {
+        var transcript = Path.Combine(dir, Transcriber.FileName);
+        if (File.Exists(transcript))
+        {
+            return new ToolStripMenuItem("Відкрити транскрипт", null, (_, _) => OpenFile(transcript));
+        }
+
+        var transcriber = new Transcriber();
+        if (!transcriber.IsAvailable)
+        {
+            return new ToolStripMenuItem("Увімкнути транскрибацію…", null, (_, _) =>
+            {
+                var window = new TranscriptionSetupWindow();
+                window.Show();
+                window.Activate();
+            });
+        }
+
+        return new ToolStripMenuItem("Транскрибувати", null, async (sender, _) =>
+        {
+            if (sender is ToolStripMenuItem menuItem)
+            {
+                menuItem.Enabled = false;
+                menuItem.Text = "Розпізнаю…";
+            }
+
+            try
+            {
+                await transcriber.TranscribeAsync(dir);
+                onChanged();
+            }
+            catch (Exception e) when (e is TranscriptionException or IOException)
+            {
+                System.Windows.MessageBox.Show(e.Message, "STLTH Recorder",
+                                               System.Windows.MessageBoxButton.OK,
+                                               System.Windows.MessageBoxImage.Warning);
+            }
+        });
     }
 
     private static string Label(SessionMeta meta)
