@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Test,
     [switch]$Run,
     [switch]$Publish,
@@ -16,7 +16,13 @@ if (-not (Test-Path $dotnet)) {
 $sln = '.\STLTH Recorder.sln'
 
 if ($Test) {
-    & $dotnet test $sln --nologo
+    # Спершу зібрати ВСЕ рішення: `dotnet test` будує лише тестовий проєкт і його
+    # залежності, а застосунок серед них не значиться — і його помилки компіляції
+    # тихо не потрапляють у «зелено».
+    & $dotnet build $sln --nologo
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    & $dotnet test $sln --nologo --no-build
     exit $LASTEXITCODE
 }
 
