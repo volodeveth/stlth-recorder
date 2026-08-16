@@ -41,6 +41,32 @@ A signing certificate costs money and adds no safety for someone building this f
 the repository themselves. If you would rather not click through the warning, take
 `STLTH-Recorder-<version>-portable.zip`: unpack and run, nothing installed.
 
+## Uninstalling
+
+Normally: Settings → Apps, or `unins000.exe` in the install folder.
+
+**If Windows refuses to run the uninstaller**, you have Smart App Control enabled. It
+blocks unsigned executables outright — there is no "run anyway" for that policy, and
+the uninstaller Inno Setup generates is unsigned like everything else here. Installing
+works, uninstalling does not.
+
+The way out ships with the app:
+
+```powershell
+& "$env:LOCALAPPDATA\STLTH Recorder\uninstall.ps1"
+```
+
+PowerShell scripts are governed by the execution policy, not by the reputation check
+that blocks the binary, so this runs where the uninstaller cannot. It removes the
+program files, the shortcut and the registry entries.
+
+Your recordings and the ~1 GB of recognition models are **kept** — they belong to you,
+not to the installer. Add `-RemoveModels`, `-RemoveRecordings`, or `-WhatIf` to see
+what would go without deleting anything.
+
+Note that installing a new version does not need an uninstall first: the installer
+upgrades in place.
+
 ## Using it
 
 **Click the tray icon** to start recording, click again to stop. Before starting, the

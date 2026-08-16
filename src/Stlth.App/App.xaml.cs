@@ -5,6 +5,7 @@ using Stlth.Core.Localization;
 using Stlth.Core.Permissions;
 using Stlth.Core.Settings;
 using Stlth.Core.Storage;
+using Stlth.Core.Transcription;
 
 // Проєкт тягне і WPF, і WinForms (трей), а вони мають однойменний Application.
 // Псевдонім знімає двозначність там, де вона виникає, не глушачи неявні using.
@@ -65,6 +66,11 @@ public partial class App : Application
         Controller.RecoverInterruptedSessions();
 
         Autostart.Apply(Settings.StartWithWindows, Environment.ProcessPath ?? "STLTH Recorder.exe");
+
+        // Моделі, на які застосунок більше не дивиться, прибираються при старті, а не
+        // лише після наступного завантаження: інакше півгігабайта лишається лежати в
+        // того, хто оновився і ніколи більше не відкриє вікно встановлення моделей.
+        new ModelInstaller().RemoveSuperseded();
 
         _tray = new TrayIcon(Controller);
         _tray.Show();

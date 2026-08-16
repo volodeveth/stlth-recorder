@@ -54,6 +54,11 @@ Source: "..\publish\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 ; whisper-cli кладеться поруч, якщо його зібрали: транскрибація опційна, і її
 ; відсутність не має ламати встановлення.
 Source: "..\publish\whisper\*"; DestDir: "{app}\whisper"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+; Запасний шлях видалення. На машинах із Smart App Control Windows відмовляється
+; запускати непідписаний unins000.exe — без «виконати все одно». Скрипт підпадає під
+; політику виконання PowerShell, а не під перевірку репутації бінарників, тож
+; спрацьовує там, де штатний деінсталятор не може.
+Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
