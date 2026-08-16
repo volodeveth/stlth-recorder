@@ -14,7 +14,7 @@
 AppId={{9C2F5A31-6B4E-4E7B-9C1D-2F8A4E5B7C10}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=Volodymyr
+AppPublisher=Volodymyr Dorosh
 DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes

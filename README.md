@@ -41,6 +41,17 @@ A signing certificate costs money and adds no safety for someone building this f
 the repository themselves. If you would rather not click through the warning, take
 `STLTH-Recorder-<version>-portable.zip`: unpack and run, nothing installed.
 
+**If Windows refuses to run the installer at all** — "An Application Control policy has
+blocked this file", with no way to proceed — you have **Smart App Control** enabled.
+Unlike SmartScreen it has no "run anyway", and it judges every unsigned binary on its
+own reputation, which means a fresh build can be blocked where the previous one was
+not. Observed here: version 1.2.1's installer ran, 1.2.2's was blocked, while the
+application executable from the same build ran fine both times.
+
+**On such machines take the portable ZIP.** The application itself is not what gets
+blocked — only the installer and the uninstaller are, and the portable package needs
+neither. Unpack it anywhere and run `STLTH Recorder.exe`.
+
 ## Uninstalling
 
 Normally: Settings → Apps, or `unins000.exe` in the install folder.
@@ -248,6 +259,10 @@ tested", not "works".
   separate instrument, but there has been no hour of continuous recording to files.
 - **The SmartScreen dialog.** The installer was verified programmatically, not by a
   double click.
+- **Which builds Smart App Control will accept.** It blocked the 1.2.2 installer and
+  allowed 1.2.1's, with no change on our side that would explain it. The verdict is
+  not ours to predict, so the portable package is the dependable path on those
+  machines.
 
 ## Development
 
