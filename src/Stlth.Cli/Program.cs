@@ -1,0 +1,191 @@
+using System.Globalization;
+using Stlth.Core;
+using Stlth.Core.Audio;
+using Stlth.Core.Storage;
+
+// Headless-стенд: те саме ядро, що й у застосунку, без жодного UI.
+//
+// Існує рівно для одного — щоб ціну головного ризику (синхронність двох потоків на
+// спільній шкалі QPC) можна було дізнатися до того, як на нього покладено інтерфейс,
+// інсталятор і бонусні шари.
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+if (args.Length == 0)
+{
+    PrintUsage();
+    return 1;
+}
+
+switch (args[0])
+{
+    case "record":
+        return Record(args.Length > 1 ? args[1] : "30");
+
+    case "devices":
+        return Devices();
+
+    case "probe":
+        return Probe(args.Length > 1 ? args[1] : "5");
+
+    default:
+        PrintUsage();
+        return 1;
+}
+
+static void PrintUsage()
+{
+    Console.WriteLine("""
+        STLTH Recorder — стенд
+
+          stlth-cli record <секунди>   записати сесію і надрукувати звіт
+          stlth-cli devices            показати пристрої за замовчуванням
+          stlth-cli probe <секунди>    подивитися на сирі пакети і їхні таймстемпи
+        """);
+}
+
+static int Devices()
+{
+    Describe("Вхід ", AudioDevices.DefaultCapture());
+    Describe("Вихід", AudioDevices.DefaultRender());
+    return 0;
+
+    static void Describe(string label, NAudio.CoreAudioApi.MMDevice? device)
+    {
+        if (device is null)
+        {
+            Console.WriteLine($"{label}: —");
+            return;
+        }
+
+        using (device)
+        {
+            var volume = device.AudioEndpointVolume;
+            Console.WriteLine($"{label}: {device.FriendlyName}");
+            Console.WriteLine($"        гучність {volume.MasterVolumeLevelScalar * 100:F0}%, " +
+                              $"{(volume.Mute ? "ВИМКНЕНО" : "увімкнено")}, " +
+                              $"формат {device.AudioClient.MixFormat}");
+        }
+    }
+}
+
+/// <summary>
+/// Дивиться на сирі пакети обох потоків: чи взагалі йдуть, чи заповнений qpcPosition,
+/// який інтервал між ними. Саме тут видно, що loopback мовчить, поки нічого не грає.
+/// </summary>
+static int Probe(string secondsArg)
+{
+    if (!double.TryParse(secondsArg, CultureInfo.InvariantCulture, out var seconds))
+    {
+        Console.Error.WriteLine("Не число: " + secondsArg);
+        return 1;
+    }
+
+    var origin = AudioDevices.NowSeconds();
+    var render = AudioDevices.DefaultRender();
+    var capture = AudioDevices.DefaultCapture();
+
+    if (render is null)
+    {
+        Console.Error.WriteLine("Немає пристрою відтворення.");
+        return 1;
+    }
+
+    var streams = new List<(string Label, WasapiStream Stream)>
+    {
+        ("system", new WasapiStream(render, loopback: true, AudioFormat.SystemChannels)),
+    };
+
+    if (capture is not null)
+    {
+        streams.Add(("mic", new WasapiStream(capture, loopback: false, AudioFormat.MicChannels)));
+    }
+
+    var counts = new Dictionary<string, int>();
+    var last = new Dictionary<string, double>();
+
+    foreach (var (label, stream) in streams)
+    {
+        counts[label] = 0;
+        var captured = label;
+        stream.PacketCaptured += packet =>
+        {
+            var index = counts[captured]++;
+            if (index < 5 || index % 200 == 0)
+            {
+                var gap = last.TryGetValue(captured, out var previous)
+                    ? $"{(packet.TimestampSeconds - previous) * 1000:F2} мс"
+                    : "—";
+                Console.WriteLine($"[{captured,6}] #{index,-5} t={packet.TimestampSeconds,8:F4} с  " +
+                                  $"кадрів={packet.FrameCount,-5} крок={gap,-10} " +
+                                  $"{(packet.Silent ? "тиша" : string.Empty)}");
+            }
+
+            last[captured] = packet.TimestampSeconds;
+        };
+        stream.Start(origin);
+    }
+
+    Console.WriteLine($"Слухаю {seconds:F0} с. Увімкніть щось, щоб системний потік ожив.\n");
+    Thread.Sleep(TimeSpan.FromSeconds(seconds));
+
+    Console.WriteLine();
+    foreach (var (label, stream) in streams)
+    {
+        Console.WriteLine($"{label,6}: пакетів {counts[label]}, пристрій «{stream.DeviceName}», " +
+                          $"qpc {(stream.QpcMissing ? "ВІДСУТНІЙ у частині пакетів" : "від драйвера")}, " +
+                          $"справжнє аудіо: {(stream.SawRealAudio ? "так" : "ні")}");
+        stream.Dispose();
+    }
+
+    return 0;
+}
+
+static int Record(string secondsArg)
+{
+    if (!double.TryParse(secondsArg, CultureInfo.InvariantCulture, out var seconds) || seconds <= 0)
+    {
+        Console.Error.WriteLine("Не число: " + secondsArg);
+        return 1;
+    }
+
+    var store = new SessionStore();
+    var controller = new RecorderController(store, dir => new AudioEngine(dir));
+
+    Console.WriteLine($"Вхід:  {DeviceMonitor.CurrentInputName}");
+    Console.WriteLine($"Вихід: {DeviceMonitor.CurrentOutputName}");
+    Console.WriteLine($"Пишу {seconds:F0} с…\n");
+
+    controller.Start(DateTimeOffset.Now, DeviceMonitor.CurrentInputName, DeviceMonitor.CurrentOutputName);
+
+    if (controller.LastError is { } error)
+    {
+        Console.Error.WriteLine(error);
+        return 1;
+    }
+
+    Thread.Sleep(TimeSpan.FromSeconds(seconds));
+    controller.Stop();
+
+    if (controller.LastResult is not { } result)
+    {
+        Console.Error.WriteLine(controller.LastError ?? "Сесія не завершилася.");
+        return 1;
+    }
+
+    var micFrames = WavWriter.FramesInFile(result.MicPath);
+    var systemFrames = WavWriter.FramesInFile(result.SystemPath);
+    var difference = micFrames - systemFrames;
+
+    Console.WriteLine($"Сесія:      {Path.GetFileName(controller.LastSessionDir)}");
+    Console.WriteLine($"Тека:       {controller.LastSessionDir}");
+    Console.WriteLine($"Тривалість: {result.DurationMs / 1000.0:F3} с");
+    Console.WriteLine($"mic.wav:    {micFrames:N0} кадрів");
+    Console.WriteLine($"system.wav: {systemFrames:N0} кадрів");
+    Console.WriteLine($"Різниця:    {difference:N0} кадрів " +
+                      $"({difference * 1000.0 / AudioFormat.SampleRate:F1} мс)");
+    Console.WriteLine($"Режим:      {result.Mode}");
+    Console.WriteLine($"Звук співрозмовника: {(result.SystemAudioDetected ? "є" : "НЕ ЗАФІКСОВАНО")}");
+
+    return difference == 0 ? 0 : 2;
+}

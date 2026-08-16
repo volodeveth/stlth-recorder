@@ -6,35 +6,53 @@ namespace Stlth.Core.Timeline;
 /// Потік може стати: зміна пристрою, збій драйвера, сон системи. Якщо просто
 /// дописувати ті пакети, що прийшли, файл виходить <b>коротшим</b> за сесію, і дві
 /// доріжки розповзаються тим сильніше, чим більше було розривів. Тому кожен пакет
-/// звіряється з таймстемпом, на якому його чекали, а прогалина заливається тишею.
+/// кладеться на позицію, яка випливає з його таймстемпа, а прогалина заливається тишею.
 ///
 /// Інваріант: <c>TotalFrames == тривалість × sampleRate</c> для кожної доріжки.
 /// Тиша пишеться, а не вирізається.
+///
+/// <b>Облік абсолютний, а не інкрементний.</b> Позиція кожного пакета рахується від
+/// початку сесії, а не додається до попередньої. Різниця не косметична: інкрементний
+/// облік округлює на кожному кроці, і на тридцятисекундному записі це вже дало дві
+/// доріжки, що відрізнялися на 2 кадри. Помилка мікроскопічна, але вона <i>накопичується</i>,
+/// і на годинній розмові з неї виріс би реальний розсинхрон. Абсолютний облік не
+/// накопичує нічого: обидві доріжки, дотягнуті до одного моменту, виходять рівно
+/// однакової довжини.
 /// </summary>
 public sealed class TimelineAccountant
 {
-    /// <summary>Джитер планувальника нижче цього — норма, а не розрив.</summary>
-    private const double JitterTolerance = 0.005;
-
     private readonly double _sampleRate;
 
-    /// <summary>Момент, на якому чекають наступний пакет, у секундах.</summary>
-    private double? _expectedNext;
+    /// <summary>Джитер планувальника нижче цього — норма, а не розрив.</summary>
+    private readonly long _jitterFrames;
 
-    public TimelineAccountant(double sampleRate) => _sampleRate = sampleRate;
+    /// <summary>Момент старту сесії; усі позиції відраховуються від нього.</summary>
+    private double _origin;
 
-    /// <summary>Кадрів пораховано — записане аудіо плюс вставлена тиша.</summary>
+    private bool _started;
+
+    public TimelineAccountant(double sampleRate)
+    {
+        _sampleRate = sampleRate;
+        _jitterFrames = (long)Math.Round(0.005 * sampleRate);
+    }
+
+    /// <summary>Кадрів пораховано — записане аудіо разом із вставленою тишею.</summary>
     public long TotalFrames { get; private set; }
 
     /// <summary>
     /// Прив'язати доріжку до моменту старту сесії.
     ///
     /// Без цього таймлайн починався б із першого пакета, а все до нього втрачалося б
-    /// замість того, щоб стати тишею. Це не теоретичний випадок: loopback не віддає
-    /// нічого, доки жоден процес не заграв, тож розмова, яка почалася з паузи,
+    /// замість того, щоб стати тишею. Це не теоретичний випадок: WASAPI loopback не
+    /// віддає нічого, доки жоден процес не заграв, тож розмова, яка почалася з паузи,
     /// зсунула б увесь системний канал.
     /// </summary>
-    public void Start(double timestampSeconds) => _expectedNext = timestampSeconds;
+    public void Start(double timestampSeconds)
+    {
+        _origin = timestampSeconds;
+        _started = true;
+    }
 
     /// <summary>
     /// Скільки кадрів тиші вставити перед пакетом, що починається о
@@ -45,13 +63,20 @@ public sealed class TimelineAccountant
     /// <returns>Кадрів тиші перед ним; 0, якщо пакет іде впритул.</returns>
     public long FramesToInsertBefore(double timestampSeconds, int frameCount)
     {
-        long pad = 0;
-        if (_expectedNext is { } expected && timestampSeconds - expected > JitterTolerance)
+        var pad = 0L;
+        if (_started)
         {
-            pad = (long)Math.Round((timestampSeconds - expected) * _sampleRate);
+            var behind = PositionOf(timestampSeconds) - TotalFrames;
+
+            // Пакет із таймстемпом раніше очікуваного не переписує минуле: драйвер,
+            // який віддав зіпсований qpcPosition, інакше зсунув би всю решту доріжки.
+            // Такий пакет просто дописується впритул.
+            if (behind > _jitterFrames)
+            {
+                pad = behind;
+            }
         }
 
-        _expectedNext = timestampSeconds + frameCount / _sampleRate;
         TotalFrames += pad + frameCount;
         return pad;
     }
@@ -65,19 +90,22 @@ public sealed class TimelineAccountant
     /// </summary>
     public long FramesToReach(double timestampSeconds)
     {
-        if (_expectedNext is not { } expected || timestampSeconds <= expected)
+        if (!_started)
         {
             return 0;
         }
 
-        var pad = (long)Math.Round((timestampSeconds - expected) * _sampleRate);
+        var pad = PositionOf(timestampSeconds) - TotalFrames;
         if (pad <= 0)
         {
             return 0;
         }
 
-        _expectedNext = timestampSeconds;
         TotalFrames += pad;
         return pad;
     }
+
+    /// <summary>Кадр, на якому має стояти доріжка в цей момент часу.</summary>
+    private long PositionOf(double timestampSeconds)
+        => (long)Math.Round((timestampSeconds - _origin) * _sampleRate);
 }

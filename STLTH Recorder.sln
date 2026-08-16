@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F597B6CA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stlth.Core.Tests", "tests\Stlth.Core.Tests\Stlth.Core.Tests.csproj", "{0B2592ED-F5A9-4C0A-BED5-DC243C77465D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stlth.Cli", "src\Stlth.Cli\Stlth.Cli.csproj", "{196F9872-88F0-44CC-ADA2-7ED84F294A0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{0B2592ED-F5A9-4C0A-BED5-DC243C77465D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B2592ED-F5A9-4C0A-BED5-DC243C77465D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0B2592ED-F5A9-4C0A-BED5-DC243C77465D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{196F9872-88F0-44CC-ADA2-7ED84F294A0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{196F9872-88F0-44CC-ADA2-7ED84F294A0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{196F9872-88F0-44CC-ADA2-7ED84F294A0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{196F9872-88F0-44CC-ADA2-7ED84F294A0D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5ABA58BF-1268-44FF-82CF-34BC236A41EC} = {26455FBB-2A63-4EC0-A263-DE637A027BD9}
 		{0B2592ED-F5A9-4C0A-BED5-DC243C77465D} = {F597B6CA-BCD3-4DCD-B3A8-4EBDEDCD0B96}
+		{196F9872-88F0-44CC-ADA2-7ED84F294A0D} = {26455FBB-2A63-4EC0-A263-DE637A027BD9}
 	EndGlobalSection
 EndGlobal
