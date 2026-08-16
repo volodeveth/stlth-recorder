@@ -6,7 +6,8 @@
 
 param(
     [string]$Version = "0.1.0",
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$SkipWhisper
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,6 +36,19 @@ Write-Host "== публікація self-contained ==" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "публікація не вдалася" }
 
 Get-ChildItem .\publish -Filter *.pdb | Remove-Item -Force
+
+# Після публікації, а не до неї: `dotnet publish` перезаписує теку, і покладене
+# наперед довелося б класти вдруге.
+if (-not $SkipWhisper) {
+    try {
+        & "$root\tools\fetch-whisper.ps1" -Destination "$root\publish\whisper"
+    }
+    catch {
+        # Транскрибація опційна: без неї застосунок повноцінний, і зривати через це
+        # збірку релізу немає підстав.
+        Write-Host "whisper не додано: $_" -ForegroundColor Yellow
+    }
+}
 
 Write-Host "== portable ZIP ==" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path .\installer\Output | Out-Null
