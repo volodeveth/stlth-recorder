@@ -75,7 +75,7 @@ internal static class RecentSessionsMenu
         var transcript = Path.Combine(dir, Transcriber.FileName);
         if (File.Exists(transcript) || hasAudio)
         {
-            item.DropDownItems.Add(TranscriptionItem(dir, onChanged));
+            item.DropDownItems.Add(TranscriptionItem(store, dir, onChanged));
         }
 
         item.DropDownItems.Add(new ToolStripSeparator());
@@ -105,7 +105,7 @@ internal static class RecentSessionsMenu
     /// Якщо моделей немає, пункт не зникає мовчки, а прямо каже, що зробити: пункт,
     /// якого немає, читається як «продукт цього не вміє».
     /// </summary>
-    private static ToolStripItem TranscriptionItem(string dir, Action onChanged)
+    private static ToolStripItem TranscriptionItem(SessionStore store, string dir, Action onChanged)
     {
         var transcript = Path.Combine(dir, Transcriber.FileName);
         if (File.Exists(transcript))
@@ -134,7 +134,9 @@ internal static class RecentSessionsMenu
 
             try
             {
-                await transcriber.TranscribeAsync(dir);
+                // Той самий шлях, що й після зупинки запису: увімкнена опція має
+                // означати одне й те саме, звідки б розпізнавання не запустили.
+                await TranscriptionService.RunAsync(transcriber, store, dir);
                 onChanged();
             }
             catch (Exception e) when (e is TranscriptionException or IOException)

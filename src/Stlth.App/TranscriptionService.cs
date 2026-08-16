@@ -19,6 +19,28 @@ internal static class TranscriptionService
 {
     private static readonly SemaphoreSlim Queue = new(1, 1);
 
+    /// <summary>
+    /// Розпізнати сесію і, якщо так налаштовано, прибрати вихідні доріжки.
+    ///
+    /// Спільна точка для обох шляхів — автоматичного після зупинки й ручного з меню.
+    /// Інакше та сама увімкнена опція поводилася б по-різному залежно від того, як
+    /// саме людина запустила розпізнавання, і пояснити це було б нічим.
+    /// </summary>
+    public static async Task<string> RunAsync(Transcriber transcriber, SessionStore store, string sessionDir)
+    {
+        var path = await transcriber.TranscribeAsync(sessionDir);
+
+        // Видалення — останнім і лише за виконаної умови. Помилка тут не має забрати
+        // з собою транскрипт, який щойно вдалося зробити.
+        if (SessionStore.MayRemoveAudio(App.Settings.DeleteAudioAfterTranscription,
+                                        transcriber.LastRunHadSpeech))
+        {
+            store.RemoveAudio(sessionDir);
+        }
+
+        return path;
+    }
+
     /// <summary>Скільки сесій чекає на черзі, включно з тією, що зараз обробляється.</summary>
     private static int _pending;
 
@@ -52,16 +74,7 @@ internal static class TranscriptionService
             await Queue.WaitAsync();
             try
             {
-                var path = await transcriber.TranscribeAsync(sessionDir);
-
-                // Видалення — останнім і лише за виконаної умови. Помилка тут не має
-                // забрати з собою транскрипт, який щойно вдалося зробити.
-                if (SessionStore.MayRemoveAudio(App.Settings.DeleteAudioAfterTranscription,
-                                                transcriber.LastRunHadSpeech))
-                {
-                    store.RemoveAudio(sessionDir);
-                }
-
+                var path = await RunAsync(transcriber, store, sessionDir);
                 onDone(path, null);
             }
             catch (Exception e) when (e is TranscriptionException or IOException
