@@ -111,6 +111,11 @@ public sealed class WasapiStream : IDisposable
         }
         catch (COMException)
         {
+            // MMDevice віддає новий AudioClient на кожен доступ, тож повторна спроба
+            // не впирається в уже ініціалізований об'єкт — але перший треба закрити,
+            // інакше він тримає COM-посилання до кінця сесії.
+            client.Dispose();
+
             client = _device.AudioClient;
             var mix = client.MixFormat;
             client.Initialize(AudioClientShareMode.Shared,
