@@ -1,33 +1,24 @@
 <Window x:Class="Stlth.App.PermissionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Немає доступу до мікрофона"
         SizeToContent="Height"
-        Width="450"
+        Width="470"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="False"
         Topmost="True">
     <StackPanel Margin="28,24,28,22">
 
-        <TextBlock Style="{StaticResource Title}" Text="Windows не дає доступу до мікрофона" />
+        <TextBlock x:Name="Heading" Style="{StaticResource Title}" />
 
-        <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10">
-            Без нього запишеться лише співрозмовник — ваш голос до сесії не потрапить.
-        </TextBlock>
+        <TextBlock x:Name="Body1" Style="{StaticResource Secondary}" Margin="0,0,0,10" />
 
-        <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,18">
-            Відкрийте «Конфіденційність → Мікрофон» і дозвольте доступ класичним
-            застосункам, потім спробуйте ще раз.
-        </TextBlock>
+        <TextBlock x:Name="Body2" Style="{StaticResource Secondary}" Margin="0,0,0,18" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Скасувати" IsCancel="True" Click="Cancel_Click" Margin="0,0,10,0" />
-            <Button Content="Писати без мікрофона" Click="Continue_Click" Margin="0,0,10,0" MinWidth="160" />
-            <Button Content="Відкрити налаштування"
-                    IsDefault="True"
-                    MinWidth="170"
-                    Click="Open_Click" />
+            <Button x:Name="CancelButton" IsCancel="True" Click="Cancel_Click" Margin="0,0,10,0" />
+            <Button x:Name="ContinueButton" Click="Continue_Click" Margin="0,0,10,0" MinWidth="180" />
+            <Button x:Name="OpenButton" IsDefault="True" MinWidth="180" Click="Open_Click" />
         </StackPanel>
 
     </StackPanel>

@@ -18,7 +18,19 @@ public sealed class MeetingWatcher : IDisposable
     private Meeting? _current;
     private DateTimeOffset? _heldSince;
     private DateTimeOffset? _freeSince;
-    private bool _announced;
+
+    /// <summary>Чи показали нагадування про початок цієї зустрічі.</summary>
+    private bool _startAnnounced;
+
+    /// <summary>
+    /// Чи була зустріч насправді — тобто чи тримав хтось мікрофон достатньо довго.
+    ///
+    /// Окремо від <see cref="_startAnnounced"/> навмисно. Один прапорець на два
+    /// питання вже дав дефект: приглушення нагадування про старт (коли людина сама
+    /// почала запис) виглядало для коду як «зустріч оголошено», і через хвилину
+    /// застосунок питав, чи зупинити запис «зустрічі», якої не було.
+    /// </summary>
+    private bool _meetingConfirmed;
 
     public MeetingWatcher(Func<Meeting?>? probe = null)
         => _probe = probe ?? MicrophoneHolders.Current;
@@ -59,7 +71,9 @@ public sealed class MeetingWatcher : IDisposable
     {
         lock (_gate)
         {
-            _announced = true;
+            // Тільки нагадування про старт. Чи була зустріч насправді — вирішує
+            // мікрофон, а не той факт, що людина натиснула «Почати запис».
+            _startAnnounced = true;
         }
     }
 
@@ -79,7 +93,9 @@ public sealed class MeetingWatcher : IDisposable
 
                 if (MeetingDetector.HasEnded(_freeSince, now))
                 {
-                    ended = _announced;
+                    // Кінець оголошуємо лише для зустрічі, яка справді була, а не
+                    // для будь-якого запису, що триває.
+                    ended = _meetingConfirmed;
                     Reset();
                 }
             }
@@ -90,16 +106,25 @@ public sealed class MeetingWatcher : IDisposable
                 if (_current?.ProcessName != candidate.Value.ProcessName)
                 {
                     // Мікрофон перехопив інший застосунок — це вже інша зустріч.
-                    _announced = false;
+                    _startAnnounced = false;
+                    _meetingConfirmed = false;
                     _current = candidate;
                     _heldSince = now;
                 }
+
+                // Зустріч підтверджена, щойно мікрофон протримали достатньо довго —
+                // незалежно від того, чи показували нагадування. Саме це відрізняє
+                // «була зустріч» від «ми про неї сказали».
+                if (_heldSince is { } since && now - since >= MeetingDetector.ConfirmationDelay)
+                {
+                    _meetingConfirmed = true;
+                }
             }
 
-            var decision = MeetingDetector.Decide(_current, _heldSince, _announced, now);
+            var decision = MeetingDetector.Decide(_current, _heldSince, _startAnnounced, now);
             if (decision is { } meeting)
             {
-                _announced = true;
+                _startAnnounced = true;
                 announce = meeting;
             }
         }
@@ -119,7 +144,8 @@ public sealed class MeetingWatcher : IDisposable
 
     private void Reset()
     {
-        _announced = false;
+        _startAnnounced = false;
+        _meetingConfirmed = false;
         _current = null;
         _heldSince = null;
         _freeSince = null;

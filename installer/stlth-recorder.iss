@@ -30,11 +30,23 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#AppExe}
 SetupIconFile=..\src\Stlth.App\Resources\idle.ico
 
+; Мова, обрана на першому екрані, стає мовою застосунку — і інтерфейсу, і
+; розпізнавання мовлення. Передається через реєстр: інсталятор і застосунок — різні
+; процеси, і спільної пам'яті між ними немає.
 [Languages]
 Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+ukrainian.AutostartTask=Запускати разом із Windows
+ukrainian.AdditionalGroup=Додатково:
+ukrainian.LaunchApp=Запустити STLTH Recorder
+english.AutostartTask=Start with Windows
+english.AdditionalGroup=Additional:
+english.LaunchApp=Launch STLTH Recorder
 
 [Tasks]
-Name: "autostart"; Description: "Запускати разом із Windows"; GroupDescription: "Додатково:"
+Name: "autostart"; Description: "{cm:AutostartTask}"; GroupDescription: "{cm:AdditionalGroup}"
 
 [Files]
 Source: "..\publish\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -51,9 +63,23 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
     ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"""; \
     Flags: uninsdeletevalue; Tasks: autostart
 
+; Застосунок забирає це значення при першому запуску і одразу видаляє, щоб повторне
+; встановлення не скидало мову, яку людина потім змінила в налаштуваннях.
+Root: HKCU; Subkey: "Software\{#AppName}"; ValueType: string; ValueName: "SetupLanguage"; \
+    ValueData: "{code:SetupLanguageCode}"; Flags: uninsdeletevalue
+
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Запустити {#AppName}"; \
+Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchApp}"; \
     Flags: nowait postinstall skipifsilent
+
+[Code]
+function SetupLanguageCode(Value: string): string;
+begin
+  if ActiveLanguage = 'english' then
+    Result := 'en'
+  else
+    Result := 'uk';
+end;
 
 [UninstallDelete]
 ; Налаштування і кеш моделей ідуть разом із застосунком. Записи — НІ: вони належать

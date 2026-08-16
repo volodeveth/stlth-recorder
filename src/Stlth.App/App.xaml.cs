@@ -1,6 +1,7 @@
 using System.Windows;
 using Stlth.Core;
 using Stlth.Core.Audio;
+using Stlth.Core.Localization;
 using Stlth.Core.Permissions;
 using Stlth.Core.Settings;
 using Stlth.Core.Storage;
@@ -28,6 +29,9 @@ public partial class App : Application
     public static void ApplyMeetingReminders()
         => ((App)Current)._tray?.SetMeetingReminders(Settings.MeetingReminders);
 
+    /// <summary>Перебудувати меню трею — після зміни мови воно має заговорити нею одразу.</summary>
+    public static void RefreshTray() => ((App)Current)._tray?.Rebuild();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -41,6 +45,16 @@ public partial class App : Application
         }
 
         Settings = AppSettings.Load();
+
+        // Мову, обрану в інсталяторі, підхоплюємо один раз — далі нею володіють
+        // налаштування застосунку.
+        if (InstallerLanguage.TakeIfPresent() is { } chosen)
+        {
+            Settings.Language = chosen;
+            Settings.Save();
+        }
+
+        Strings.Current = Settings.Language;
 
         // Усе, що має працювати без участі користувача, будується тут — а не при
         // першому відкритті меню. Лінива побудова меню робить такий код мертвим без
@@ -57,10 +71,10 @@ public partial class App : Application
 
         if (Controller.RecoveredSessions.Count > 0)
         {
-            _tray.Notify("Відновлено після збою",
+            _tray.Notify(Strings.RecoveredTitle,
                          Controller.RecoveredSessions.Count == 1
-                             ? "Сесію, перервану аварійно, збережено — аудіо ціле."
-                             : $"Сесій, перерваних аварійно: {Controller.RecoveredSessions.Count}. Аудіо ціле.");
+                             ? Strings.RecoveredOne
+                             : Strings.RecoveredMany(Controller.RecoveredSessions.Count));
 
             // Сесія, обірвана крахом, зведення не встигла отримати — а послухати її
             // хочеться саме тоді, коли щось пішло не так.

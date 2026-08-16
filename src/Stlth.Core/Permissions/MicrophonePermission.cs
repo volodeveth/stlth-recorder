@@ -91,9 +91,9 @@ public static class MicrophonePermission
 
     public static string Describe(MicPermission permission) => permission switch
     {
-        MicPermission.Granted => "Мікрофон: доступ є",
-        MicPermission.Denied => "Мікрофон: доступ заборонено",
-        MicPermission.NoDevice => "Мікрофон: пристрою немає",
-        _ => "Мікрофон: стан невідомий",
+        MicPermission.Granted => Localization.Strings.MicGranted,
+        MicPermission.Denied => Localization.Strings.MicDenied,
+        MicPermission.NoDevice => Localization.Strings.MicNoDevice,
+        _ => Localization.Strings.MicUnknown,
     };
 }

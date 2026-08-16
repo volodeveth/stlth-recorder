@@ -54,12 +54,12 @@ public sealed partial class Transcriber
         {
             if (!File.Exists(_executable))
             {
-                return "Не знайдено whisper-cli.exe поруч із застосунком.";
+                return Localization.Strings.WhisperMissing;
             }
 
             return _models.IsInstalled
                 ? null
-                : $"Моделі не встановлені (потрібно ≈ {ModelInstaller.TotalBytes / 1_048_576} МБ).";
+                : Localization.Strings.ModelsMissing(ModelInstaller.TotalBytes / 1_048_576);
         }
     }
 
@@ -77,8 +77,8 @@ public sealed partial class Transcriber
 
         foreach (var (track, speaker) in new[]
         {
-            (Track.Mic, "Я"),
-            (Track.System, "Співрозмовник"),
+            (Track.Mic, Localization.Strings.SpeakerMe),
+            (Track.System, Localization.Strings.SpeakerPeer),
         })
         {
             var audio = Path.Combine(sessionDir, track.File);
@@ -91,7 +91,7 @@ public sealed partial class Transcriber
             // як обірваний і мовчки видав би шматок розмови.
             WavRepair.RepairIfNeeded(audio);
 
-            progress?.Report($"Розпізнаю: {speaker.ToLowerInvariant()}…");
+            progress?.Report($"{Localization.Strings.TranscribeInProgress} {speaker.ToLowerInvariant()}");
             lines.AddRange(await RunAsync(audio, speaker, cancellation));
         }
 
@@ -110,7 +110,7 @@ public sealed partial class Transcriber
         {
             "-m", _models.PathOf(ModelInstaller.Required[0]),
             "-f", audio,
-            "-l", "uk",
+            "-l", Localization.Strings.WhisperCode,
             // Результат читається зі stdout, тож жодних вихідних файлів не просимо.
             // `--output-txt` тут був би не просто зайвим, а шкідливим: це булевий
             // перемикач без значення, і дописане до нього «false» whisper прийняв би
@@ -148,7 +148,7 @@ public sealed partial class Transcriber
         if (process.ExitCode != 0)
         {
             throw new TranscriptionException(
-                $"whisper-cli завершився з кодом {process.ExitCode}: {errors.Trim()}");
+                Localization.Strings.WhisperFailed(process.ExitCode, errors.Trim()));
         }
 
         var lines = Parse(output, speaker);
@@ -160,8 +160,7 @@ public sealed partial class Transcriber
         if (lines.Count == 0 && FailedToRead(errors))
         {
             throw new TranscriptionException(
-                $"whisper-cli не зміг прочитати {Path.GetFileName(audio)}. " +
-                "Файл пошкоджений або має несподіваний формат.");
+                Localization.Strings.WhisperUnreadable(Path.GetFileName(audio)));
         }
 
         return lines;
@@ -175,7 +174,7 @@ public sealed partial class Transcriber
         try
         {
             return Process.Start(startInfo)
-                ?? throw new TranscriptionException("Не вдалося запустити whisper-cli.exe");
+                ?? throw new TranscriptionException(Localization.Strings.WhisperLaunchFailed(string.Empty));
         }
         catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == BlockedByPolicy)
         {
@@ -184,13 +183,11 @@ public sealed partial class Transcriber
             // тут не «спробуйте ще раз», а пояснення, що саме сталося і чого це НЕ
             // стосується.
             throw new TranscriptionException(
-                "Windows заблокував whisper-cli.exe політикою Smart App Control. " +
-                "Транскрибація недоступна, доки цей файл не підписаний або політику не змінено. " +
-                "Запис і зведення від цього не залежать.");
+                Localization.Strings.WhisperBlocked);
         }
         catch (System.ComponentModel.Win32Exception e)
         {
-            throw new TranscriptionException($"Не вдалося запустити whisper-cli.exe: {e.Message}");
+            throw new TranscriptionException(Localization.Strings.WhisperLaunchFailed(e.Message));
         }
     }
 
@@ -230,15 +227,14 @@ public sealed partial class Transcriber
     internal static string Render(string sessionDir, IReadOnlyList<Line> lines)
     {
         var builder = new StringBuilder();
-        builder.AppendLine($"# Транскрипт сесії {Path.GetFileName(sessionDir)}");
+        builder.AppendLine(Localization.Strings.TranscriptHeader(Path.GetFileName(sessionDir)));
         builder.AppendLine();
-        builder.AppendLine("Розпізнано локально, whisper.cpp. Ролі не вгадані моделлю: доріжка");
-        builder.AppendLine("мікрофона — це завжди я, доріжка системного звуку — співрозмовник.");
+        builder.AppendLine(Localization.Strings.TranscriptNote);
         builder.AppendLine();
 
         if (lines.Count == 0)
         {
-            builder.AppendLine("_Мовлення не розпізнано._");
+            builder.AppendLine(Localization.Strings.TranscriptEmpty);
             return builder.ToString();
         }
 

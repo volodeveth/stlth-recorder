@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
+using Stlth.Core.Localization;
 using Stlth.Core.Mixdown;
 using Stlth.Core.Storage;
 using Stlth.Core.Transcription;
@@ -20,12 +21,12 @@ internal static class RecentSessionsMenu
 
     public static ToolStripMenuItem Build(SessionStore store, Action onChanged)
     {
-        var root = new ToolStripMenuItem("Останні записи");
+        var root = new ToolStripMenuItem(Strings.RecentSessions);
         var sessions = store.List();
 
         if (sessions.Count == 0)
         {
-            root.DropDownItems.Add(new ToolStripMenuItem("Записів ще немає") { Enabled = false });
+            root.DropDownItems.Add(new ToolStripMenuItem(Strings.NoSessionsYet) { Enabled = false });
             return root;
         }
 
@@ -35,7 +36,7 @@ internal static class RecentSessionsMenu
         }
 
         root.DropDownItems.Add(new ToolStripSeparator());
-        root.DropDownItems.Add(new ToolStripMenuItem("Відкрити теку записів", null,
+        root.DropDownItems.Add(new ToolStripMenuItem(Strings.OpenRecordingsFolder, null,
             (_, _) => OpenFolder(store.Root)));
 
         return root;
@@ -48,26 +49,26 @@ internal static class RecentSessionsMenu
 
         if (meta.Status == SessionStatus.Interrupted)
         {
-            item.ToolTipText = "Сесію перервано аварійно — записане збережено.";
+            item.ToolTipText = Strings.InterruptedHint;
         }
 
-        item.DropDownItems.Add(new ToolStripMenuItem("Показати в Провіднику", null,
+        item.DropDownItems.Add(new ToolStripMenuItem(Strings.ShowInExplorer, null,
             (_, _) => OpenFolder(dir)));
 
         var mix = Path.Combine(dir, SessionMixer.FileName);
         if (File.Exists(mix))
         {
-            item.DropDownItems.Add(new ToolStripMenuItem("Прослухати розмову", null,
+            item.DropDownItems.Add(new ToolStripMenuItem(Strings.ListenToConversation, null,
                 (_, _) => OpenFile(mix)));
         }
 
         item.DropDownItems.Add(TranscriptionItem(dir, onChanged));
 
         item.DropDownItems.Add(new ToolStripSeparator());
-        item.DropDownItems.Add(new ToolStripMenuItem("Видалити", null, (_, _) =>
+        item.DropDownItems.Add(new ToolStripMenuItem(Strings.Delete, null, (_, _) =>
         {
             var answer = System.Windows.MessageBox.Show(
-                $"Видалити запис від {Label(meta)}? Аудіо зникне назавжди.",
+                Strings.DeleteConfirm(Label(meta)),
                 "STLTH Recorder",
                 System.Windows.MessageBoxButton.OKCancel,
                 System.Windows.MessageBoxImage.Warning);
@@ -95,13 +96,13 @@ internal static class RecentSessionsMenu
         var transcript = Path.Combine(dir, Transcriber.FileName);
         if (File.Exists(transcript))
         {
-            return new ToolStripMenuItem("Відкрити транскрипт", null, (_, _) => OpenFile(transcript));
+            return new ToolStripMenuItem(Strings.OpenTranscript, null, (_, _) => OpenFile(transcript));
         }
 
         var transcriber = new Transcriber();
         if (!transcriber.IsAvailable)
         {
-            return new ToolStripMenuItem("Увімкнути транскрибацію…", null, (_, _) =>
+            return new ToolStripMenuItem(Strings.EnableTranscription, null, (_, _) =>
             {
                 var window = new TranscriptionSetupWindow();
                 window.Show();
@@ -109,12 +110,12 @@ internal static class RecentSessionsMenu
             });
         }
 
-        return new ToolStripMenuItem("Транскрибувати", null, async (sender, _) =>
+        return new ToolStripMenuItem(Strings.Transcribe, null, async (sender, _) =>
         {
             if (sender is ToolStripMenuItem menuItem)
             {
                 menuItem.Enabled = false;
-                menuItem.Text = "Розпізнаю…";
+                menuItem.Text = Strings.TranscribeInProgress;
             }
 
             try
@@ -137,8 +138,8 @@ internal static class RecentSessionsMenu
         var duration = TimeSpan.FromMilliseconds(meta.DurationMs);
 
         var length = duration.TotalMinutes >= 1
-            ? $"{(int)duration.TotalMinutes} хв"
-            : $"{(int)duration.TotalSeconds} с";
+            ? Strings.MinutesShort((int)duration.TotalMinutes)
+            : Strings.SecondsShort((int)duration.TotalSeconds);
 
         var mark = meta.Status == SessionStatus.Interrupted ? "  ⚠" : string.Empty;
         return $"{when} · {length}{mark}";

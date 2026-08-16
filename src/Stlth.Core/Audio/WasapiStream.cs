@@ -126,8 +126,7 @@ public sealed class WasapiStream : IDisposable
             if (mix.SampleRate != AudioFormat.SampleRate)
             {
                 throw new InvalidOperationException(
-                    $"Пристрій «{DeviceName}» працює на {mix.SampleRate} Гц і не приймає перетворення " +
-                    $"до {AudioFormat.SampleRate} Гц. Змініть частоту пристрою в налаштуваннях звуку Windows.");
+                    Localization.Strings.UnsupportedSampleRate(DeviceName, mix.SampleRate, AudioFormat.SampleRate));
             }
         }
 

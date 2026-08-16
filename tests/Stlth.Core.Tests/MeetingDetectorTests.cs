@@ -199,6 +199,50 @@ public class MeetingWatcherTests
     }
 
     [Fact]
+    public void A_manual_recording_without_a_meeting_never_reports_one_ending()
+    {
+        // Побачено в бою: людина сама почала запис, жодної зустрічі не було — і через
+        // хвилину застосунок спитав, чи зупинити запис «зустрічі, що завершилася».
+        // Причина була в одному прапорці на два питання: приглушення нагадування про
+        // старт виглядало для коду як «зустріч оголошено».
+        var probe = new Probe { Holder = null };
+        var watcher = new MeetingWatcher(probe.Read);
+        var ended = 0;
+        watcher.Ended += () => ended++;
+
+        watcher.SuppressForCurrentMeeting();
+        watcher.Poll(Start);
+        watcher.Poll(Start.AddSeconds(30));
+        watcher.Poll(Start.AddSeconds(120));
+
+        Assert.Equal(0, ended);
+    }
+
+    [Fact]
+    public void A_real_meeting_still_reports_its_end_even_if_the_reminder_was_suppressed()
+    {
+        // Зворотний бік тієї самої монети: якщо зустріч справді була, а людина почала
+        // запис сама, нагадування про кінець потрібне — воно найважливіше з двох.
+        var probe = new Probe { Holder = Zoom };
+        var watcher = new MeetingWatcher(probe.Read);
+        var announced = new List<Meeting>();
+        var ended = 0;
+        watcher.Started += announced.Add;
+        watcher.Ended += () => ended++;
+
+        watcher.Poll(Start);
+        watcher.SuppressForCurrentMeeting();     // людина сама натиснула «Почати запис»
+        watcher.Poll(Start.AddSeconds(10));      // зустріч підтверджена, але мовчки
+
+        probe.Holder = null;
+        watcher.Poll(Start.AddSeconds(20));
+        watcher.Poll(Start.AddSeconds(90));
+
+        Assert.Empty(announced);                 // про старт не нагадували
+        Assert.Equal(1, ended);                  // про кінець — нагадали
+    }
+
+    [Fact]
     public void Suppressing_stops_the_reminder_for_the_current_meeting()
     {
         var probe = new Probe { Holder = Zoom };

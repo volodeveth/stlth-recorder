@@ -1,6 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Stlth.Core.Localization;
 using Stlth.Core.Permissions;
 
 namespace Stlth.Core.Settings;
@@ -15,6 +16,16 @@ public sealed class AppSettings
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
+
+    /// <summary>
+    /// Мова інтерфейсу — і мовлення, яке очікує розпізнавання.
+    ///
+    /// Обирається при встановленні і змінюється тут. Одне значення на обидва
+    /// призначення навмисно: людина, яка поставила англійський інтерфейс, майже
+    /// напевно говорить у дзвінках англійською, а два окремі перемикачі для однієї
+    /// відповіді — це два способи помилитися.
+    /// </summary>
+    public AppLanguage Language { get; set; } = AppLanguage.Uk;
 
     /// <summary>
     /// Запускатися разом із Windows. <b>Увімкнено за замовчуванням.</b>
@@ -32,6 +43,17 @@ public sealed class AppSettings
 
     /// <summary>Чи встановлені моделі транскрибації.</summary>
     public bool TranscriptionEnabled { get; set; }
+
+    /// <summary>
+    /// Розпізнавати сесію одразу після зупинки запису.
+    ///
+    /// Увімкнено за замовчуванням, але вмикається лише тоді, коли моделі справді
+    /// встановлені: без них це нічого не робить і нічого не питає.
+    ///
+    /// Робота повільна — приблизно стільки ж часу, скільки тривала розмова, на кожну
+    /// доріжку. Тому вона йде у фоні, по одній сесії за раз, і її можна вимкнути.
+    /// </summary>
+    public bool AutoTranscribe { get; set; } = true;
 
     /// <summary>
     /// Останній відомий стан дозволу на мікрофон.

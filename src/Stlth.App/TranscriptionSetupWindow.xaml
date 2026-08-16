@@ -1,21 +1,16 @@
 <Window x:Class="Stlth.App.TranscriptionSetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Увімкнути транскрибацію"
         SizeToContent="Height"
-        Width="470"
+        Width="480"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True">
     <StackPanel Margin="28,24,28,22">
 
-        <TextBlock Style="{StaticResource Title}" Text="Локальна транскрибація" />
+        <TextBlock x:Name="Heading" Style="{StaticResource Title}" />
 
-        <TextBlock Style="{StaticResource Secondary}" Margin="0,0,0,10">
-            Розпізнавання працює повністю на цьому комп'ютері. Аудіо нікуди не
-            надсилається — ні зараз, ні під час розпізнавання. Із мережі
-            завантажуються лише моделі.
-        </TextBlock>
+        <TextBlock x:Name="Explain" Style="{StaticResource Secondary}" Margin="0,0,0,10" />
 
         <Border Background="#F0F0F2" CornerRadius="6" Padding="12,10" Margin="0,0,0,16">
             <TextBlock x:Name="SizeText" Style="{StaticResource Secondary}" />
@@ -31,12 +26,8 @@
         <TextBlock x:Name="StatusText" Style="{StaticResource Secondary}" Margin="0,0,0,16" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button x:Name="CancelButton" Content="Закрити" IsCancel="True" Click="Cancel_Click" Margin="0,0,10,0" />
-            <Button x:Name="InstallButton"
-                    Content="Завантажити моделі"
-                    IsDefault="True"
-                    MinWidth="180"
-                    Click="Install_Click" />
+            <Button x:Name="CancelButton" IsCancel="True" Click="Cancel_Click" Margin="0,0,10,0" />
+            <Button x:Name="InstallButton" IsDefault="True" MinWidth="190" Click="Install_Click" />
         </StackPanel>
 
     </StackPanel>

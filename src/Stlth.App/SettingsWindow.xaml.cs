@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using Stlth.Core.Localization;
 using Stlth.Core.Permissions;
-using Stlth.Core.Settings;
 using Stlth.Core.Storage;
+using Stlth.Core.Transcription;
 
 namespace Stlth.App;
 
@@ -15,17 +16,70 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
 
+        LanguageBox.SelectedIndex = App.Settings.Language == AppLanguage.Uk ? 0 : 1;
         Autostart.IsChecked = App.Settings.StartWithWindows;
         Reminders.IsChecked = App.Settings.MeetingReminders;
         Mixdown.IsChecked = App.Settings.BuildMixdown;
+        AutoTranscribe.IsChecked = App.Settings.AutoTranscribe;
+
+        ApplyLanguage();
+        _loaded = true;
+    }
+
+    /// <summary>
+    /// Перемалювати весь текст вікна.
+    ///
+    /// Викликається і при відкритті, і після зміни мови: перемикач, який подіє лише
+    /// після перезапуску, читається як зламаний.
+    /// </summary>
+    private void ApplyLanguage()
+    {
+        Title = Strings.SettingsWindowTitle;
+        Heading.Text = Strings.SettingsTitle;
+
+        LanguageLabel.Text = Strings.LanguageLabel;
+        LanguageHint.Text = Strings.LanguageHint;
+
+        AutostartLabel.Text = Strings.AutostartLabel;
+        AutostartHint.Text = Strings.AutostartHint;
+        RemindersLabel.Text = Strings.RemindersLabel;
+        RemindersHint.Text = Strings.RemindersHint;
+        MixdownLabel.Text = Strings.MixdownLabel;
+        MixdownHint.Text = Strings.MixdownHint;
+        AutoTranscribeLabel.Text = Strings.AutoTranscribeLabel;
+        AutoTranscribeHint.Text = Strings.AutoTranscribeHint;
+
+        // Перемикач лишається доступним, але коли моделей немає, він нічого не
+        // зробить — і про це чесніше сказати одразу, ніж дати людині чекати
+        // транскрипт, якого не буде.
+        AutoTranscribeWarning.Text = Strings.AutoTranscribeNeedsModels;
+        AutoTranscribeWarning.Visibility = new Transcriber().IsAvailable
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
         PermissionText.Text = MicrophonePermission.Describe(App.Settings.RememberedMicPermission);
 
         var free = DiskGuard.FreeBytes(SessionStore.DefaultRoot);
-        StorageText.Text = $"Вільно {free / 1_073_741_824.0:F1} ГБ — приблизно " +
-                           $"{DiskGuard.EstimatedMinutesRemaining(free) / 60} год запису.";
+        StorageText.Text = Strings.StorageFree(free / 1_073_741_824.0,
+                                               DiskGuard.EstimatedMinutesRemaining(free) / 60);
 
-        _loaded = true;
+        FolderButton.Content = Strings.OpenFolder;
+        CloseButton.Content = Strings.Close;
+    }
+
+    private void Language_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_loaded)
+        {
+            return;
+        }
+
+        App.Settings.Language = LanguageBox.SelectedIndex == 1 ? AppLanguage.En : AppLanguage.Uk;
+        Strings.Current = App.Settings.Language;
+        App.Settings.Save();
+
+        ApplyLanguage();
+        App.RefreshTray();
     }
 
     private void Save(object sender, RoutedEventArgs e)
@@ -38,14 +92,13 @@ public partial class SettingsWindow : Window
         App.Settings.StartWithWindows = Autostart.IsChecked == true;
         App.Settings.MeetingReminders = Reminders.IsChecked == true;
         App.Settings.BuildMixdown = Mixdown.IsChecked == true;
+        App.Settings.AutoTranscribe = AutoTranscribe.IsChecked == true;
         App.Settings.Save();
 
-        App.ApplyMeetingReminders();
-
-        // Реєстр правиться одразу, а не «колись при виході»: перемикач, який не
-        // подіяв до перезапуску, читається як зламаний.
+        // Реєстр правиться одразу, а не «колись при виході».
         Core.Settings.Autostart.Apply(App.Settings.StartWithWindows,
                                       Environment.ProcessPath ?? "STLTH Recorder.exe");
+        App.ApplyMeetingReminders();
     }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)

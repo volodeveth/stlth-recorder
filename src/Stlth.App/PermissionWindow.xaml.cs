@@ -1,4 +1,5 @@
 using System.Windows;
+using Stlth.Core.Localization;
 using Stlth.Core.Permissions;
 
 namespace Stlth.App;
@@ -17,6 +18,15 @@ public partial class PermissionWindow : Window
     private PermissionWindow()
     {
         InitializeComponent();
+
+        Title = Strings.PermissionTitle;
+        Heading.Text = Strings.PermissionHeading;
+        Body1.Text = Strings.PermissionBody1;
+        Body2.Text = Strings.PermissionBody2;
+        CancelButton.Content = Strings.Cancel;
+        ContinueButton.Content = Strings.PermissionContinue;
+        OpenButton.Content = Strings.PermissionOpen;
+
         Loaded += (_, _) => Activate();
     }
 

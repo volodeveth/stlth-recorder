@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Windows.Threading;
 using Stlth.Core;
 using Stlth.Core.Audio;
+using Stlth.Core.Localization;
 using Stlth.Core.Meetings;
 using Stlth.Core.Permissions;
 using Stlth.Core.Storage;
@@ -97,8 +98,7 @@ public sealed class TrayIcon : IDisposable
         }
 
         Application.Current.Dispatcher.Invoke(() =>
-            Notify($"Почалася зустріч у {meeting.AppName}",
-                   "Увімкнути запис? Клацніть іконку STLTH Recorder."));
+            Notify(Strings.MeetingStartedTitle(meeting.AppName), Strings.MeetingStartedBody));
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public sealed class TrayIcon : IDisposable
         }
 
         Application.Current.Dispatcher.Invoke(() =>
-            Notify("Зустріч завершено", "Запис досі триває. Зупинити?"));
+            Notify(Strings.MeetingEndedTitle, Strings.MeetingEndedBody));
     }
 
     /// <summary>Увімкнути або вимкнути спостереження за зустрічами на льоту.</summary>
@@ -171,8 +171,9 @@ public sealed class TrayIcon : IDisposable
         var menu = _icon.ContextMenuStrip!;
         menu.Items.Clear();
 
-        _startStop = new ToolStripMenuItem(_controller.IsRecording ? "Зупинити запис" : "Почати запис",
-                                           null, (_, _) => ToggleRecording())
+        _startStop = new ToolStripMenuItem(
+            _controller.IsRecording ? Strings.StopRecording : Strings.StartRecording,
+            null, (_, _) => ToggleRecording())
         {
             Font = new Font(menu.Font, System.Drawing.FontStyle.Bold),
         };
@@ -186,28 +187,28 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add(PermissionItem());
-        menu.Items.Add(new ToolStripMenuItem("Налаштування…", null, (_, _) => OpenSettings()));
-        menu.Items.Add(new ToolStripMenuItem("Про застосунок", null, (_, _) => ShowAbout()));
+        menu.Items.Add(new ToolStripMenuItem(Strings.SettingsMenu, null, (_, _) => OpenSettings()));
+        menu.Items.Add(new ToolStripMenuItem(Strings.About, null, (_, _) => ShowAbout()));
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Вийти", null, (_, _) => Application.Current.Shutdown()));
+        menu.Items.Add(new ToolStripMenuItem(Strings.Quit, null, (_, _) => Application.Current.Shutdown()));
     }
 
-    private void Rebuild() => Application.Current.Dispatcher.Invoke(BuildMenu);
+    public void Rebuild() => Application.Current.Dispatcher.Invoke(BuildMenu);
 
     private ToolStripItem PermissionItem()
     {
         var state = App.Settings.RememberedMicPermission;
         if (state == MicPermission.Granted)
         {
-            return new ToolStripMenuItem("Мікрофон: доступ є") { Enabled = false };
+            return new ToolStripMenuItem(Strings.MicGranted) { Enabled = false };
         }
 
         var label = state switch
         {
-            MicPermission.Denied => "Мікрофон: доступ заборонено — відкрити налаштування",
-            MicPermission.NoDevice => "Мікрофона не знайдено",
-            _ => "Мікрофон: перевірити доступ",
+            MicPermission.Denied => Strings.MicDeniedMenu,
+            MicPermission.NoDevice => Strings.MicMissing,
+            _ => Strings.MicCheck,
         };
 
         return new ToolStripMenuItem(label, null, (_, _) =>
@@ -226,10 +227,12 @@ public sealed class TrayIcon : IDisposable
 
     private string StatusText() => _controller.State switch
     {
-        RecorderState.Recording => $"Запис — {Format(_controller.Elapsed)}",
-        RecorderState.Preparing => "Готуюся…",
-        RecorderState.Stopping => "Зупиняю…",
-        _ => _controller.LastError ?? "Готовий до запису",
+        RecorderState.Recording => Strings.RecordingFor(Format(_controller.Elapsed)),
+        RecorderState.Preparing => Strings.Preparing,
+        RecorderState.Stopping => Strings.Stopping,
+        _ => _controller.LastError ?? (TranscriptionService.IsBusy
+            ? Strings.TranscribeInProgress
+            : Strings.Ready),
     };
 
     private static string Format(TimeSpan elapsed) =>
@@ -246,13 +249,13 @@ public sealed class TrayIcon : IDisposable
         // Стан має бути видно, не відкриваючи меню: підказка над іконкою — єдине,
         // що людина бачить, не клікнувши.
         _icon.Text = recording
-            ? $"STLTH Recorder — запис {Format(_controller.Elapsed)}"
+            ? Strings.TrayRecording(Format(_controller.Elapsed))
             : "STLTH Recorder";
 
         if (_icon.ContextMenuStrip?.Visible == true)
         {
             _status.Text = StatusText();
-            _startStop.Text = recording ? "Зупинити запис" : "Почати запис";
+            _startStop.Text = recording ? Strings.StopRecording : Strings.StartRecording;
         }
 
         if (recording && !_tick.IsEnabled)
@@ -311,7 +314,7 @@ public sealed class TrayIcon : IDisposable
 
             if (_controller.LastError is { } error)
             {
-                Notify("Не вдалося почати запис", error);
+                Notify(Strings.StartFailedTitle, error);
                 return;
             }
 
@@ -339,15 +342,49 @@ public sealed class TrayIcon : IDisposable
             // Мовчазна доріжка співрозмовника — найгірший спосіб дізнатися, що
             // звук грав не на тому пристрої: про це треба казати одразу, а не
             // залишати людину відкривати файл через тиждень.
-            Notify("Запис завершено, але співрозмовника не чути",
-                   "У системному каналі не було звуку. Перевірте, що звук дзвінка йде на " +
-                   $"«{result.OutputDeviceName}».");
+            Notify(Strings.NoPeerAudioTitle, Strings.NoPeerAudioBody(result.OutputDeviceName));
         }
 
-        if (App.Settings.BuildMixdown && _controller.LastSessionDir is { } dir)
+        if (_controller.LastSessionDir is not { } dir)
+        {
+            return;
+        }
+
+        if (App.Settings.BuildMixdown)
         {
             MixdownService.BuildInBackground(_controller.Store, dir);
         }
+
+        if (App.Settings.AutoTranscribe)
+        {
+            StartTranscription(dir);
+        }
+    }
+
+    /// <summary>
+    /// Поставити щойно завершену сесію в чергу на розпізнавання.
+    ///
+    /// Мовчить, якщо моделей немає: пропозиція їх поставити живе в меню сесії і не
+    /// має вискакувати після кожного запису.
+    /// </summary>
+    private void StartTranscription(string sessionDir)
+    {
+        TranscriptionService.Enqueue(_controller.Store, sessionDir, (path, error) =>
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (path is not null)
+                {
+                    Notify(Strings.TranscriptReadyTitle, Strings.TranscriptReadyBody);
+                }
+                else if (error is not null)
+                {
+                    Notify(Strings.TranscriptFailedTitle, error);
+                }
+
+                Refresh();
+            }));
+
+        Refresh();
     }
 
     private static void OpenSettings()
@@ -360,7 +397,6 @@ public sealed class TrayIcon : IDisposable
     private void ShowAbout()
     {
         var version = typeof(TrayIcon).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-        Notify("STLTH Recorder " + version,
-               "Запис розмови у два синхронні канали. Нічого не залишає цей комп'ютер.");
+        Notify("STLTH Recorder " + version, Strings.AboutBody);
     }
 }

@@ -21,9 +21,18 @@ public class ModelInstallerTests : IDisposable
     [Fact]
     public void The_total_size_is_stated_before_downloading()
     {
-        // Це число показують людині до того, як почати качати півгігабайта.
-        Assert.True(ModelInstaller.TotalBytes > 500L * 1024 * 1024);
-        Assert.True(ModelInstaller.TotalBytes < 700L * 1024 * 1024);
+        // Це число показують людині до того, як почати качати гігабайт.
+        Assert.True(ModelInstaller.TotalBytes > 1_000L * 1024 * 1024);
+        Assert.True(ModelInstaller.TotalBytes < 1_200L * 1024 * 1024);
+    }
+
+    [Fact]
+    public void The_full_model_is_used_not_the_distilled_one()
+    {
+        // Turbo вдвічі швидший, бо його декодер здистильований із 32 шарів до 4 —
+        // і саме декодер тримає межі слів. На українській це чути прямо.
+        Assert.Contains(ModelInstaller.Required, model => model.Name == "ggml-large-v3-q5_0.bin");
+        Assert.DoesNotContain(ModelInstaller.Required, model => model.Name.Contains("turbo"));
     }
 
     [Fact]

@@ -105,7 +105,7 @@ public sealed class RecorderController
             _handle = null;
             _engine = null;
             StartedAt = null;
-            LastError = $"Не вдалося почати запис: {e.Message}";
+            LastError = Localization.Strings.StartFailed(e.Message);
             State = RecorderState.Idle;
         }
 
@@ -138,13 +138,13 @@ public sealed class RecorderController
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                LastError = $"Запис зупинено, але не вдалося оновити meta.json: {e.Message}";
+                LastError = Localization.Strings.StoppedButMetaFailed(e.Message);
             }
         }
         catch (Exception e)
         {
             // Движок помер на зупинці — аудіо на диску, і сесія має це відображати.
-            LastError = $"Запис зупинено з помилкою: {e.Message}";
+            LastError = Localization.Strings.StoppedWithError(e.Message);
             TryInterrupt(handle);
         }
         finally

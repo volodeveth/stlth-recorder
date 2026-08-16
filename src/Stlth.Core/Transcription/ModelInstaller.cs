@@ -45,15 +45,28 @@ public sealed class ModelInstaller
     /// </summary>
     public static IReadOnlyList<ModelSpec> Required { get; } =
     [
+        // Повна large-v3, а не turbo. Turbo вдвічі швидший, бо його декодер
+        // здистильований із 32 шарів до 4 — і саме декодер відповідає за те, щоб
+        // слова складалися в осмислену послідовність. На українській це видно
+        // прямо: turbo зліплював «Тораз глянемо» там, де повна модель чує
+        // «Та розглянемо», і давав уламки замість слів. Транскрибація — робота у
+        // фоні після розмови, тож удвічі більше часу тут коштує менше, ніж
+        // спотворені репліки.
         new ModelSpec(
-            "ggml-large-v3-turbo-q5_0.bin",
-            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true",
-            574_041_195),
+            "ggml-large-v3-q5_0.bin",
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin?download=true",
+            1_081_140_203),
         new ModelSpec(
             "ggml-silero-v5.1.2.bin",
             "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin?download=true",
             885_098),
     ];
+
+    /// <summary>
+    /// Моделі, якими користувалися раніше. Лишати їх у теці означає тримати
+    /// півгігабайта, який більше ніколи не відкриють.
+    /// </summary>
+    private static readonly string[] Superseded = ["ggml-large-v3-turbo-q5_0.bin"];
 
     private readonly HttpClient _http;
 
@@ -109,7 +122,28 @@ public sealed class ModelInstaller
             done += model.ApproxBytes;
         }
 
+        RemoveSuperseded();
         progress?.Report(1.0);
+    }
+
+    /// <summary>Прибрати моделі, якими застосунок більше не користується.</summary>
+    public void RemoveSuperseded()
+    {
+        foreach (var name in Superseded)
+        {
+            try
+            {
+                var path = Path.Combine(Directory, name);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Зайнятий або недоступний — просто лишиться лежати.
+            }
+        }
     }
 
     private async Task DownloadAsync(ModelSpec model,
@@ -164,7 +198,7 @@ public sealed class ModelInstaller
         if (!response.IsSuccessStatusCode)
         {
             throw new ModelInstallException(
-                $"Не вдалося завантажити {model.Name}: сервер відповів {(int)response.StatusCode}");
+                Localization.Strings.ModelServerRefused(model.Name, (int)response.StatusCode));
         }
 
         // Сервер не підтримав продовження і почав спочатку — приймаємо це чесно,
@@ -199,8 +233,7 @@ public sealed class ModelInstaller
         if (expected is { } total2 && actual != total2)
         {
             throw new ModelInstallException(
-                $"{model.Name} завантажився не повністю ({actual:N0} з {total2:N0} Б) — " +
-                "спробуйте ще раз, завантаження продовжиться.");
+                Localization.Strings.ModelIncomplete(model.Name, actual, total2));
         }
 
         Finalise(partial, target);

@@ -1,4 +1,5 @@
 using System.Windows;
+using Stlth.Core.Localization;
 using Stlth.Core.Storage;
 
 namespace Stlth.App;
@@ -17,8 +18,12 @@ public partial class ConsentWindow : Window
     {
         InitializeComponent();
 
-        DeviceText.Text = $"Співрозмовника буде записано з «{outputDevice}» — переконайтеся, " +
-                          "що звук дзвінка йде саме туди.";
+        Title = Strings.ConsentTitle;
+        Heading.Text = Strings.ConsentQuestion;
+        Explain.Text = Strings.ConsentExplain;
+        DeviceText.Text = Strings.ConsentDevice(outputDevice);
+        CancelButton.Content = Strings.Cancel;
+        StartButton.Content = Strings.ConsentStart;
 
         var free = DiskGuard.FreeBytes(sessionRoot);
         var level = DiskGuard.Level(free);
@@ -27,8 +32,8 @@ public partial class ConsentWindow : Window
         {
             DiskWarning.Visibility = Visibility.Visible;
             DiskText.Text = level == DiskLevel.Critical
-                ? "На диску майже не лишилося місця — запис може обірватися."
-                : $"Вільного місця вистачить приблизно на {DiskGuard.EstimatedMinutesRemaining(free)} хв запису.";
+                ? Strings.DiskCritical
+                : Strings.DiskLow(DiskGuard.EstimatedMinutesRemaining(free));
         }
 
         // Агент у треї ніколи не є активним застосунком, тож вікно, показане

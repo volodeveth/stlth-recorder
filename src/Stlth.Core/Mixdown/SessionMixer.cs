@@ -78,7 +78,7 @@ public static class SessionMixer
         {
             if (!File.Exists(path))
             {
-                throw new MixerException($"У теці сесії немає {name}");
+                throw new MixerException(Localization.Strings.MixMissingTrack(name));
             }
 
             // Сесія, під час якої застосунок убили, несе заголовок із нульовим
@@ -113,7 +113,7 @@ public static class SessionMixer
         catch (Exception e) when (e is IOException or InvalidOperationException or ArgumentException)
         {
             DeleteQuietly(temporary);
-            throw new MixerException($"Не вдалося записати зведений файл: {e.Message}");
+            throw new MixerException(Localization.Strings.MixWriteFailed(e.Message));
         }
     }
 
@@ -125,7 +125,7 @@ public static class SessionMixer
 
         if (DiskGuard.FreeBytes(sessionDir) <= need)
         {
-            throw new MixerException($"Замало місця для зведеного файлу (потрібно ≈ {need / 1_048_576} МБ)");
+            throw new MixerException(Localization.Strings.MixNoSpace(need / 1_048_576));
         }
     }
 

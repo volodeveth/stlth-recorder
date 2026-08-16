@@ -46,7 +46,7 @@ public sealed class AudioEngine : IAudioEngine
 
         var render = AudioDevices.DefaultRender()
             ?? throw new InvalidOperationException(
-                "У системі немає пристрою відтворення — записувати співрозмовника нізвідки.");
+                Localization.Strings.NoRenderDevice);
         _outputDeviceName = AudioDevices.NameOf(render);
 
         _micTrack = new TrackRecorder(Path.Combine(_sessionDir, Track.Mic.File),
@@ -100,7 +100,8 @@ public sealed class AudioEngine : IAudioEngine
     {
         if (_stopped)
         {
-            throw new InvalidOperationException("Движок уже зупинено.");
+            // Внутрішній інваріант, не текст інтерфейсу: побачити його може лише розробник.
+            throw new InvalidOperationException("The engine is already stopped.");
         }
 
         _stopped = true;
