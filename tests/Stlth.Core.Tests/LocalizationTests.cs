@@ -72,6 +72,15 @@ public class LocalizationTests : IDisposable
     }
 
     [Fact]
+    public void English_is_the_default()
+    {
+        // Продукт розрахований на ширшу аудиторію, ніж одна країна, тож типова мова —
+        // англійська. Українську обирають свідомо: в інсталяторі або в налаштуваннях.
+        Assert.Equal(AppLanguage.En, default(AppLanguage));
+        Assert.Equal(AppLanguage.En, new Stlth.Core.Settings.AppSettings().Language);
+    }
+
+    [Fact]
     public void The_whisper_code_follows_the_interface_language()
     {
         Strings.Current = AppLanguage.Uk;

@@ -162,7 +162,25 @@ public class TranscriberTests
 
     [Fact]
     public void An_empty_transcript_says_so_plainly()
-        => Assert.Contains("не розпізнано", Transcriber.Render(@"C:\sessions\abc", []));
+    {
+        // Мова задається явно: типова колись уже змінювалася, і тест, який мовчки
+        // спирався на неї, впав не тому, що зламався рендер.
+        var original = Stlth.Core.Localization.Strings.Current;
+        try
+        {
+            foreach (var language in new[] { Stlth.Core.Localization.AppLanguage.En,
+                                             Stlth.Core.Localization.AppLanguage.Uk })
+            {
+                Stlth.Core.Localization.Strings.Current = language;
+                var rendered = Transcriber.Render(@"C:\sessions\abc", []);
+                Assert.Contains(Stlth.Core.Localization.Strings.TranscriptEmpty, rendered);
+            }
+        }
+        finally
+        {
+            Stlth.Core.Localization.Strings.Current = original;
+        }
+    }
 
     [Fact]
     public void A_file_whisper_could_not_read_is_not_mistaken_for_silence()

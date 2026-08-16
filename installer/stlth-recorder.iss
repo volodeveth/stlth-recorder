@@ -33,9 +33,10 @@ SetupIconFile=..\src\Stlth.App\Resources\idle.ico
 ; Мова, обрана на першому екрані, стає мовою застосунку — і інтерфейсу, і
 ; розпізнавання мовлення. Передається через реєстр: інсталятор і застосунок — різні
 ; процеси, і спільної пам'яті між ними немає.
+; Англійська перша — вона ж і типова: Inno Setup пропонує ту, що стоїть вище.
 [Languages]
-Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 
 [CustomMessages]
 ukrainian.AutostartTask=Запускати разом із Windows
@@ -75,10 +76,10 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchApp}"; \
 [Code]
 function SetupLanguageCode(Value: string): string;
 begin
-  if ActiveLanguage = 'english' then
-    Result := 'en'
+  if ActiveLanguage = 'ukrainian' then
+    Result := 'uk'
   else
-    Result := 'uk';
+    Result := 'en';
 end;
 
 [UninstallDelete]

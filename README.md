@@ -1,253 +1,248 @@
 # STLTH Recorder
 
-Записує мої дзвінки **без бота в конференції**: мій голос — з мікрофона,
-співрозмовника — із системного виводу, у **два окремі синхронні аудіофайли**.
+Records my calls **without a bot in the meeting**: my voice from the microphone, the
+other side from the system output, into **two separate synchronised audio files**.
 
-Я зробив це для себе. Боти-записувачі розв'язують ту саму задачу ціною стороннього
-учасника в дзвінку: його видно всім, він вимагає окремої згоди на рівні платформи і
-відправляє аудіо назовні. Локальний запис такої ціни не має.
+I built this for myself. Recording bots solve the same problem at the price of an
+extra participant in the call — one everybody can see, who needs consent at the
+platform level, and who ships the audio somewhere else. Capturing locally does not
+cost that.
 
-> **Стан:** ядро і застосунок працюють, 142 тести зелені. Дрейф каналів виміряний на
-> годинній базі. Приймальна матриця закрита частково — що саме перевірено, а що ні,
-> чесно написано нижче.
+> **Status:** the core and the app work, 169 tests green. Channel drift is measured
+> over an hour. The acceptance matrix is partly closed — what is verified and what is
+> not is written out honestly below.
 
-## Що це і як працює
+## What it is
 
 | | |
 |---|---|
-| Платформа | Windows 10/11 (x64) |
-| Мова | Українська або англійська — обирається при встановленні, змінюється в налаштуваннях |
-| Тип | Агент у треї, автозапуск при вході — перемикається |
-| Захоплення | WASAPI loopback (системний вивід) + WASAPI capture (мікрофон) |
-| Синхронність | Спільна шкала QPC + інваріант таймлайна |
-| Формат | WAV / LPCM 16-bit, 48 000 Гц: `mic.wav` (моно), `system.wav` (стерео) |
-| Дані | Усе лишається на цьому комп'ютері; жодних мережевих запитів |
-| Права | Без адміністратора, без драйверів, без служб |
-| Нагадування | Помічає початок і кінець зустрічі, питає про запис — але ніколи не вмикає його сам |
-| Прослуховування | `session.m4a` — зведення обох каналів, я ліворуч, співрозмовник праворуч |
-| Бонус | Локальна транскрибація (whisper.cpp), моделі довантажуються з меню |
+| Platform | Windows 10/11 (x64) |
+| Language | English or Ukrainian — chosen during setup, changeable in settings |
+| Type | Tray agent, starts with Windows — toggleable |
+| Capture | WASAPI loopback (system output) + WASAPI capture (microphone) |
+| Synchronisation | Shared QPC scale + the timeline invariant |
+| Format | WAV / LPCM 16-bit, 48 000 Hz: `mic.wav` (mono), `system.wav` (stereo) |
+| Data | Everything stays on this computer; no network requests |
+| Privileges | No administrator, no drivers, no services |
+| Reminders | Notices when a meeting starts and ends, and asks — but never records on its own |
+| Listening back | `session.m4a` — both channels mixed, me on the left, the other side on the right |
+| Transcription | Local whisper.cpp, runs automatically after each recording |
 
-## Встановлення
+## Installing
 
-1. Завантажити `STLTH-Recorder-<версія>-setup.exe` зі сторінки релізів.
-2. Запустити. Встановлюється **в профіль користувача, без прав адміністратора**.
+1. Download `STLTH-Recorder-<version>-setup.exe` from the releases page.
+2. Run it. It installs **into your user profile, without administrator rights**.
 
-**Про попередження SmartScreen.** Файл не підписаний сертифікатом розробника, тож при
-першому запуску Windows покаже синє вікно «Windows protected your PC». Це не про
-вміст файлу — це про те, що система не має чим підтвердити, хто його зібрав.
-Натисніть **«Детальніше» → «Виконати в будь-якому разі»**. Потрібно один раз.
+**About the SmartScreen warning.** The file is not signed with a developer
+certificate, so on first launch Windows shows a blue dialog. That is about the missing
+signature, not about the contents. Click **More info → Run anyway**. Once is enough.
 
-Сертифікат підпису коштує грошей і не додає жодної безпеки тому, хто збирає
-застосунок сам із цього репозиторію. Якщо не хочете обходити попередження — беріть
-`STLTH-Recorder-<версія>-portable.zip`: розпакували й запустили, нічого не
-встановлюючи.
+A signing certificate costs money and adds no safety for someone building this from
+the repository themselves. If you would rather not click through the warning, take
+`STLTH-Recorder-<version>-portable.zip`: unpack and run, nothing installed.
 
-## Як користуватися
+## Using it
 
-**Клік по іконці в треї** — почати запис, ще клік — зупинити. Перед стартом
-застосунок питає, чи співрозмовник знає про запис; факт і час підтвердження лягають у
-`meta.json` разом із сесією.
+**Click the tray icon** to start recording, click again to stop. Before starting, the
+app asks whether the other side knows about the recording; the fact and its timestamp
+go into `meta.json` alongside the session.
 
-Поки триває запис, іконка стає **червоною**, а тривалість видно в підказці над нею —
-не відкриваючи меню.
+While recording, the icon turns **red** and the elapsed time shows in the tooltip —
+without opening the menu.
 
-У меню: останні записи (показати в Провіднику, прослухати, транскрибувати, видалити),
-стан дозволу на мікрофон, налаштування.
+The menu holds recent recordings (show in Explorer, listen back, transcribe, delete),
+the microphone permission state, and settings.
 
-## Тека сесії
+## Session folder
 
 ```
 %LOCALAPPDATA%\STLTH Recorder\Sessions\<UUID>\
-├── mic.wav        мій голос, моно      — джерело правди
-├── system.wav     співрозмовник, стерео — джерело правди
-├── session.m4a    зведення для прослуховування (я ліворуч), похідне
-├── meta.json      метадані, згода, пристрої, тривалість
-└── transcript.md  опційно, локальна транскрибація
+├── mic.wav        my voice, mono        — source of truth
+├── system.wav     the other side, stereo — source of truth
+├── session.m4a    mixdown for listening back (me on the left), derived
+├── meta.json      metadata, consent, devices, duration
+└── transcript.md  optional, local transcription
 ```
 
-## Як тримається синхронність
+## How synchronisation holds
 
-Мікрофон і пристрій відтворення — це два різні пристрої з двома різними годинниками,
-які поволі розходяться. Зшивати два потоки за порядком надходження означало б
-накопичувати цю розбіжність і потім її компенсувати.
+The microphone and the playback device are two different devices with two different
+clocks that slowly drift apart. Stitching two streams by arrival order would
+accumulate that drift and then require correcting it.
 
-Замість цього спільною опорою служить **QPC** — єдиний монотонний годинник, спільний
-для всієї машини. WASAPI віддає таймстемп для кожного пакета, обидва потоки
-нормалізуються до моменту старту сесії, і кожен пакет кладеться в таймлайн **за
-власним часом**, а не за тим, коли до нього дійшли руки.
+Instead, the shared reference is **QPC** — the single monotonic clock common to the
+whole machine. WASAPI hands out a timestamp with every packet, both streams are
+normalised to the moment the session started, and each packet lands in the timeline
+**at its own time**, not when it happened to be picked up.
 
-Формулювати результат треба обережно: дрейф тут не «відсутній за побудовою», а
-**обмежений точністю QPC-прив'язки і дорівнює виміряному числу**. Тому вимірювання —
-не бонус, а обов'язковий крок приймання.
+The result has to be stated carefully: drift here is not "absent by construction" but
+**bounded by the accuracy of the QPC anchoring, and equal to the measured number**.
+That makes measurement a required acceptance step, not a bonus.
 
-**Інваріант, який тримає все разом:** у кожному файлі кількість семплів дорівнює
-тривалості сесії, помноженій на 48000. Завжди. Тиша пишеться як тиша і ніколи не
-вирізається — саме це закриває і паузи в розмові, і зміну пристрою посеред запису, і
-сон системи одним механізмом.
+**The invariant that holds it together:** in each file the number of samples equals
+the session duration times 48000. Always. Silence is written as silence and never cut
+out — that single mechanism covers pauses in the conversation, a device change
+mid-recording, and the machine going to sleep.
 
-## Нагадування про зустрічі
+## Meeting reminders
 
-Записувач, який покладається на дисциплінованість, не розв'язує проблему забутого
-запису. Тому застосунок стежить за зустрічами сам:
+A recorder that relies on your discipline does not solve the problem of the forgotten
+recording. So the app watches for meetings itself:
 
-- **почалася зустріч** → «Почалася зустріч у Zoom — увімкнути запис?»
-- **зустріч завершилася, а запис триває** → «Запис досі триває. Зупинити?»
+- **a meeting started** → "A meeting started in Zoom — start recording?"
+- **the meeting ended while recording continues** → "The recording is still running. Stop it?"
 
-Друге важливіше за перше. Забути ввімкнути — втратити розмову; забути вимкнути —
-писати кімнату далі, збираючи аудіо, на яке ніхто згоди не давав.
+The second matters more than the first. Forgetting to start loses the conversation;
+forgetting to stop keeps recording the room afterwards, collecting audio nobody
+consented to.
 
-**Рішення завжди за мною.** Застосунок питає — він ніколи не вмикає і не вимикає
-запис сам.
+**The decision is always mine.** The app asks — it never starts or stops a recording
+by itself.
 
-Зустріч розпізнається за тим, що **якийсь застосунок для дзвінків тримає мікрофон**.
-Не читаються ані вкладки браузера, ані заголовки вікон. Один механізм покриває Zoom,
-Meet у Chrome, Teams, Slack і Webex; диктування нагадувань не викликає.
+A meeting is recognised by the one signature no conferencing app can avoid: **something
+is holding the microphone open**. Neither browser tabs nor window titles are read. One
+mechanism covers Zoom, Meet in Chrome, Teams, Slack and Webex; dictation raises no
+reminder.
 
-## Дозволи
+## Permissions
 
-Потрібен один дозвіл — **мікрофон**. Системний звук у Windows окремого дозволу не
-потребує; це властивість платформи, а не заслуга застосунку.
+One permission is needed — the **microphone**. Capturing system audio needs no separate
+permission on Windows; that is a property of the platform, not a merit of the app.
 
-Стан дозволу видно в меню завжди. Якщо доступ заборонено, застосунок пояснює це і дає
-кнопку прямо в потрібну сторінку налаштувань. Можна писати й без мікрофона — тоді
-сесія чесно позначається як `system-only`, а `mic.wav` пишеться тишею повної довжини:
-розмову, записану з одного боку, ще можна послухати, а не записану — вже ні.
+The permission state is always visible in the menu. If access is denied, the app
+explains it and offers a button straight to the right settings page. You can also
+record without a microphone — the session is then honestly marked `system-only` and
+`mic.wav` is written as full-length silence: a conversation recorded from one side can
+still be listened to, one that was never recorded cannot.
 
-## Транскрибація
+## Transcription
 
-**Запускається сама після кожного запису** — вимикається в налаштуваннях. Працює у
-фоні, по одній сесії за раз: розпізнавання займає приблизно стільки ж часу, скільки
-тривала розмова, на кожну доріжку, і дві сесії поспіль інакше змагалися б за машину
-людини, яка щойно поклала слухавку.
+**Runs on its own after every recording** — switchable off in settings. It works in the
+background, one session at a time: recognition takes roughly as long as the
+conversation itself, per track, and two sessions in a row would otherwise compete for
+the machine of somebody who has just hung up.
 
-Вручну: `Останні записи` → сесія → **Транскрибувати**. Працює на whisper.cpp повністю
-на пристрої; аудіо нікуди не вивантажується.
+Manually: `Recent recordings` → session → **Transcribe**. Runs on whisper.cpp entirely
+on the device; audio is never uploaded.
 
-Мова розпізнавання — та сама, що й мова інтерфейсу.
+Speaker attribution is not guessed by a diarisation model: `mic.wav` is always me,
+`system.wav` is always the other side. What is usually a task with its own error rate
+is here a property of the recording.
 
-Розділення за спікерами не вгадується моделлю діаризації: `mic.wav` — це завжди я,
-`system.wav` — завжди співрозмовник. Те, що зазвичай є окремою задачею з власною
-похибкою, тут є властивістю запису.
+The models (≈1032 MB) install from the menu, with progress and resume. They are
+deliberately not bundled: a gigabyte inside a recorder whose main job does not need it
+is a gigabyte downloaded by everyone who does not want transcription. Recording works
+without them.
 
-Моделі (≈548 МБ) ставляться з меню, з прогресом і продовженням перерваного
-завантаження. Свідомо не вшиті в застосунок: півгігабайта в рекордері, чия основна
-робота їх не потребує. Запис працює без них.
+**VAD is mandatory, not optional.** Whisper always decodes something on its input
+window: give it silence and you get a plausible sentence nobody said. And a meeting is
+mostly silence. Verified on a real recording — without VAD, forty seconds of room noise
+produced four invented Ukrainian sentences, complete with punctuation.
 
-**VAD обов'язковий, не опційний.** Whisper на вхідному вікні завжди щось декодує: дай
-йому тишу — отримаєш правдоподібне речення, якого ніхто не казав. А зустріч
-здебільшого з тиші й складається.
+The recognition language follows the interface language.
 
-Перевірено наскрізь на синтезованій мові — текст виходить дослівний, спікер береться
-з доріжки, а мовчазна доріжка не породжує жодного вигаданого рядка:
+> On systems with Smart App Control enabled, the unsigned `whisper-cli.exe` may be
+> blocked — the app detects that specifically and says so plainly instead of failing
+> cryptically. From an installed build it runs normally. **Recording and the mixdown do
+> not depend on transcription at all.**
 
-```
-**Я**
-- `00:00:00` Good afternoon, thank you for making the time today.
-- `00:00:03` I would like to talk about the portfolio and the plan for the next quarter.
-```
+## Acceptance matrix
 
-**Якість розпізнавання української мови не виміряна.** Для чесного числа потрібен
-запис живої мови з наперед відомим текстом, а його поки немає — тож жодного WER я тут
-не наводжу.
+Every row closes with a number and an artefact, not an opinion. An empty result means
+"not tested yet", not "works".
 
-> На системах із увімкненим Smart App Control непідписаний `whisper-cli.exe` може бути
-> заблокований — застосунок розпізнає це окремо і каже прямо, а не падає з загадковою
-> помилкою. Зі встановленої збірки він запускається нормально. **Запис і зведення від
-> транскрибації не залежать узагалі.**
-
-## Приймальна матриця
-
-Кожен рядок закривається числом і артефактом, а не оцінкою. Порожній результат
-означає «ще не перевіряв», а не «працює».
-
-| № | Сценарій | Очікуваний результат | Результат |
+| № | Scenario | Expected | Result |
 |---|---|---|---|
-| 1 | Розбіжність каналів за годину | < 300 мс | ✅ верхня межа **7.4 мс/год** (95% довіра), 56 хв прогону |
-| 2 | Довжина обох доріжок | Однакова, посемплово | ✅ 1 466 220 кадрів обидві, різниця **0** |
-| 3 | Погляд із боку співрозмовника | Немає стороннього учасника, немає сповіщень | ⬜ не перевіряв на живому дзвінку |
-| 4 | Мовчання 10 хвилин | Тиша записана, таймлайн не зсунувся | ⬜ перевірено тестом, не живим прогоном |
-| 5 | Встановлення без прав адміністратора | Ставиться в профіль користувача, застосунок запускається | ✅ інсталятор із релізу, з міткою «з інтернету», під неадміністратором — код 0 |
-| 6 | Перегляд результату сесії | Тека відкривається, файли грає плеєр, `meta.json` валідний | ✅ ручний прохід |
-| 7 | Відновлення після краху | Сесія стає `interrupted` з реальною тривалістю, файли читаються | ✅ `Stop-Process -Force` посеред запису → 25.6 с із коротшої доріжки, заголовок полагоджено |
+| 1 | Channel drift over an hour | < 300 ms | ✅ upper bound **7.4 ms/h** (95% confidence), 56 min run |
+| 2 | Track lengths | Identical, sample for sample | ✅ 1 466 220 frames both, difference **0** |
+| 3 | The other side's view | No extra participant, no notifications | ⬜ not tried on a live call |
+| 4 | Ten minutes of silence | Silence recorded, timeline not shifted | ⬜ covered by tests, not by a live run |
+| 5 | Installing without admin rights | Installs into the user profile, app launches | ✅ release installer, marked as downloaded, as a non-administrator — exit code 0 |
+| 6 | Reviewing a session | Folder opens, files play, `meta.json` valid | ✅ manual pass |
+| 7 | Crash recovery | Session becomes `interrupted` with a real duration, files readable | ✅ `Stop-Process -Force` mid-recording → 25.6 s from the shorter track, header repaired |
 
-## Виміряні числа
+## Measured numbers
 
-| Що | Значення |
+| What | Value |
 |---|---|
-| **Розбіжність каналів, 56 хв** | **0.4 мс/год (95% ДІ ±7.0)** при порозі 300 |
-| Довжини доріжок, 30 с | 1 466 220 кадрів обидві, різниця **0 кадрів** |
-| Те саме на встановленій збірці 1.0.0 | 1 109 778 кадрів обидві, різниця **0 кадрів** |
-| Крок пакетів WASAPI | 10.0 ± 0.15 мс на обох потоках |
-| Точність вимірювача дрейфу | **0.1 мс/год** на синтетичних зсувах 0 / 150 / 400 / −250 |
-| Тести ядра | 153, усі зелені |
-| Зведення сесії 24.6 с | 0.3 МБ за 0.4 с (≈98 кбіт/с) |
+| **Channel divergence, 56 min** | **0.4 ms/h (95% CI ±7.0)** against a 300 ms threshold |
+| Track lengths, 30 s | 1 466 220 frames both, difference **0 frames** |
+| Same on the installed build | 1 109 778 frames both, difference **0 frames** |
+| WASAPI packet interval | 10.0 ± 0.15 ms on both streams |
+| Accuracy of the drift instrument itself | **0.1 ms/h** on synthetic offsets of 0 / 150 / 400 / −250 |
+| Core tests | 169, all green |
+| Mixdown of a 24.6 s session | 0.3 MB in 0.4 s (≈98 kbit/s) |
 
-**Про розбіжність каналів — не «0.4 мс/год».** Довірчий інтервал (±7.0) ширший за
-саму величину, тобто розбіжність **не відрізняється від нуля** на цій базі. Чесне
-формулювання — «верхня межа 7.4 мс/год з 95% довірою», приблизно у 40 разів менша за
-поріг. Перші проби на короткій базі стрибали в діапазоні ±50 мс/год, і це було не
-дрейфом, а відсутністю бази.
+**About the channel divergence — it is not "0.4 ms/h".** The confidence interval
+(±7.0) is wider than the value itself, meaning the divergence is **indistinguishable
+from zero** on this baseline. The honest phrasing is "upper bound 7.4 ms/h at 95%
+confidence", roughly 40× under the threshold. Early samples on a short baseline swung
+by ±50 ms/h — and that was not drift, it was the absence of a baseline.
 
-Повні звіти — [docs/notes/evidence/](docs/notes/evidence/).
+Full reports live in [docs/notes/evidence/](docs/notes/evidence/).
 
-## Чого чесно НЕ перевірено
+## What is honestly NOT verified
 
-Список не прибирається наприкінці — порожній рядок у матриці вище означає «не
-перевіряв», а не «працює».
+The list is not tidied away at the end. An empty row in the matrix above means "not
+tested", not "works".
 
-- **Рівень мікрофона на живій мові.** Доріжка стабільно отримує пакети, але на всіх
-  прогонах кімната була тиха. Те, що тракт живий, виміряно; те, що голос звучить
-  розбірливо, — ні.
-- **Якість розпізнавання української.** Конвеєр перевірений наскрізь, але для чесного
-  WER потрібен запис живої мови з наперед відомим текстом.
-- **Реальний дзвінок.** Zoom і Meet не запускалися: перевірка йшла на синтетичному
-  тоні через системний вивід.
-- **Bluetooth-гарнітура.** Найважчий випадок для синхронності — власний clock domain і
-  перепідключення посеред розмови.
-- **Зміна пристрою посеред запису.** Код перебудовує потік і пише подію в `meta.json`,
-  але жодного разу не спрацював на реальному перемиканні.
-- **Watchdog.** Покритий тестами як правило, але на справжньому збої не спостерігався.
-- **Довгі сесії.** Найдовший запис — 30 секунд. Дрейф виміряний окремим інструментом,
-  але години безперервного запису у файли не було.
-- **Вікно SmartScreen.** Інсталятор перевірявся програмно, не подвійним кліком.
+- **Microphone level on live speech.** The track reliably receives packets, but on most
+  runs the room was quiet. That the path is alive is measured; that a voice comes
+  through clearly is not.
+- **Ukrainian recognition quality.** The pipeline is verified end to end, but an honest
+  WER needs a recording of live speech against a known reference text.
+- **A real call.** Zoom and Meet were never launched: verification used a synthetic
+  tone through the system output.
+- **A Bluetooth headset.** The hardest case for synchronisation — its own clock domain
+  and reconnects mid-conversation.
+- **Device change mid-recording.** The code rebuilds the stream and writes the event
+  into `meta.json`, but it has never fired on a real switch.
+- **The watchdog.** Covered by tests as a rule, never observed on a real fault.
+- **Long sessions.** The longest recording is 30 seconds. Drift was measured with a
+  separate instrument, but there has been no hour of continuous recording to files.
+- **The SmartScreen dialog.** The installer was verified programmatically, not by a
+  double click.
 
-## Розробка
+## Development
 
 ```powershell
-.\build.ps1 -Test          # зібрати рішення і прогнати тести
-.\build.ps1 -Cli           # headless-стенд
-.\build.ps1 -Publish       # self-contained збірка
-.\installer\build-installer.ps1 -Version 1.0.0   # portable ZIP + інсталятор
+.\build.ps1 -Test          # build the solution and run the tests
+.\build.ps1 -Cli           # headless bench
+.\build.ps1 -Publish       # self-contained build
+.\installer\build-installer.ps1 -Version 1.1.0   # portable ZIP + installer
 ```
 
-Стенд і вимірювання:
+Bench and measurements:
 
 ```powershell
-dotnet run --project src/Stlth.Cli -- devices      # пристрої за замовчуванням
-dotnet run --project src/Stlth.Cli -- probe 10     # сирі пакети і таймстемпи
-dotnet run --project src/Stlth.Cli -- record 30    # записати сесію і звіт
-dotnet run --project src/Stlth.Cli -- drift 3600   # темп годинників, регресія
+dotnet run --project src/Stlth.Cli -- devices      # default devices
+dotnet run --project src/Stlth.Cli -- probe 10     # raw packets and their timestamps
+dotnet run --project src/Stlth.Cli -- record 30    # record a session and report
+dotnet run --project src/Stlth.Cli -- drift 3600   # clock rates, regression
+dotnet run --project src/Stlth.Cli -- models       # download the transcription models
+dotnet run --project src/Stlth.Cli -- transcribe <dir>
 ```
 
 ```powershell
-python tools\selftest_drift.py                     # перевірити сам вимірювач
+python tools\selftest_drift.py                     # verify the instrument itself
 python tools\gen_clicks.py --out clicks.wav --duration 3600
-python tools\drift_check.py <тека_сесії>           # дрейф за клік-треком
-python tools\wav_stats.py <тека_сесії>             # чи там сигнал, а не тиша
+python tools\drift_check.py <session_dir>          # drift from a click track
+python tools\wav_stats.py <session_dir>            # is there signal, or silence
+python tools\speech_map.py <file.wav>              # where speech actually is
 ```
 
-**.NET SDK не в PATH?** Скрипти шукають його в `%LOCALAPPDATA%\Microsoft\dotnet`.
-Поставити без прав адміністратора:
+**.NET SDK not on PATH?** The scripts look for it in `%LOCALAPPDATA%\Microsoft\dotnet`.
+Install it without administrator rights:
 
 ```powershell
 & ([scriptblock]::Create((Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1))) -Channel 8.0
 ```
 
-## Артефакти прогонів
+## Run artefacts
 
-Кожне число в цьому файлі має за собою прогін, а не оцінку:
+Every number in this file has a run behind it, not an estimate:
 
 - [docs/notes/evidence/p1-gate-capture.md](docs/notes/evidence/p1-gate-capture.md) —
-  перше захоплення на реальних пристроях, поведінка loopback у тиші
+  first capture on real devices, loopback behaviour in silence
 - [docs/notes/evidence/drift-60min.md](docs/notes/evidence/drift-60min.md) —
-  розбіжність каналів на годинній базі з довірчим інтервалом
+  channel divergence over an hour, with its confidence interval

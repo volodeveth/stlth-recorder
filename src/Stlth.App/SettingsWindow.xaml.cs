@@ -16,7 +16,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
 
-        LanguageBox.SelectedIndex = App.Settings.Language == AppLanguage.Uk ? 0 : 1;
+        LanguageBox.SelectedIndex = App.Settings.Language == AppLanguage.Uk ? 1 : 0;
         Autostart.IsChecked = App.Settings.StartWithWindows;
         Reminders.IsChecked = App.Settings.MeetingReminders;
         Mixdown.IsChecked = App.Settings.BuildMixdown;
@@ -74,7 +74,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        App.Settings.Language = LanguageBox.SelectedIndex == 1 ? AppLanguage.En : AppLanguage.Uk;
+        App.Settings.Language = LanguageBox.SelectedIndex == 1 ? AppLanguage.Uk : AppLanguage.En;
         Strings.Current = App.Settings.Language;
         App.Settings.Save();
 

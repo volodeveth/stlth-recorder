@@ -33,9 +33,9 @@ public static class InstallerLanguage
 
             key.DeleteValue(ValueName, throwOnMissingValue: false);
 
-            return value.Equals("en", StringComparison.OrdinalIgnoreCase)
-                ? AppLanguage.En
-                : AppLanguage.Uk;
+            return value.Equals("uk", StringComparison.OrdinalIgnoreCase)
+                ? AppLanguage.Uk
+                : AppLanguage.En;
         }
         catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException)
         {

@@ -15,8 +15,8 @@
             <TextBlock x:Name="LanguageHint" Style="{StaticResource Secondary}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" Width="220" HorizontalAlignment="Left"
                       SelectionChanged="Language_Changed">
-                <ComboBoxItem Content="Українська" />
                 <ComboBoxItem Content="English" />
+                <ComboBoxItem Content="Українська" />
             </ComboBox>
         </StackPanel>
 

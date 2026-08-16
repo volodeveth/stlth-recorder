@@ -25,7 +25,7 @@ public sealed class AppSettings
     /// напевно говорить у дзвінках англійською, а два окремі перемикачі для однієї
     /// відповіді — це два способи помилитися.
     /// </summary>
-    public AppLanguage Language { get; set; } = AppLanguage.Uk;
+    public AppLanguage Language { get; set; } = AppLanguage.En;
 
     /// <summary>
     /// Запускатися разом із Windows. <b>Увімкнено за замовчуванням.</b>

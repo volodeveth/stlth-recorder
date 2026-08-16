@@ -2,8 +2,10 @@ namespace Stlth.Core.Localization;
 
 public enum AppLanguage
 {
-    Uk,
+    /// <summary>Типова мова: продукт розрахований на ширшу аудиторію, ніж одна країна.</summary>
     En,
+
+    Uk,
 }
 
 /// <summary>
@@ -19,7 +21,7 @@ public enum AppLanguage
 /// </summary>
 public static class Strings
 {
-    public static AppLanguage Current { get; set; } = AppLanguage.Uk;
+    public static AppLanguage Current { get; set; } = AppLanguage.En;
 
     private static string Pick(string uk, string en) => Current == AppLanguage.Uk ? uk : en;
 
