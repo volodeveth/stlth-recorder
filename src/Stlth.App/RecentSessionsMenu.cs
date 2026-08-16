@@ -51,6 +51,10 @@ internal static class RecentSessionsMenu
         {
             item.ToolTipText = Strings.InterruptedHint;
         }
+        else if (meta.AudioRemovedAt is not null)
+        {
+            item.ToolTipText = Strings.AudioRemoved(Label(meta));
+        }
 
         item.DropDownItems.Add(new ToolStripMenuItem(Strings.ShowInExplorer, null,
             (_, _) => OpenFolder(dir)));
@@ -62,7 +66,17 @@ internal static class RecentSessionsMenu
                 (_, _) => OpenFile(mix)));
         }
 
-        item.DropDownItems.Add(TranscriptionItem(dir, onChanged));
+        // Сесія без вихідних доріжок — це не поломка, а наслідок увімкненої опції.
+        // Пропонувати для неї розпізнавання означало б обіцяти те, чого вже не
+        // зробити: аудіо немає.
+        var hasAudio = File.Exists(Path.Combine(dir, Track.Mic.File)) ||
+                       File.Exists(Path.Combine(dir, Track.System.File));
+
+        var transcript = Path.Combine(dir, Transcriber.FileName);
+        if (File.Exists(transcript) || hasAudio)
+        {
+            item.DropDownItems.Add(TranscriptionItem(dir, onChanged));
+        }
 
         item.DropDownItems.Add(new ToolStripSeparator());
         item.DropDownItems.Add(new ToolStripMenuItem(Strings.Delete, null, (_, _) =>

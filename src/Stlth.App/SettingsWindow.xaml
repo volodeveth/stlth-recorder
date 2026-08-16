@@ -52,6 +52,17 @@
             </StackPanel>
         </CheckBox>
 
+        <CheckBox x:Name="DeleteAudio" Checked="Save" Unchecked="Save">
+            <StackPanel>
+                <TextBlock x:Name="DeleteAudioLabel" />
+                <TextBlock x:Name="DeleteAudioHint" Style="{StaticResource Secondary}" />
+                <TextBlock x:Name="DeleteAudioWarning"
+                           Style="{StaticResource Secondary}"
+                           Foreground="{StaticResource Accent}"
+                           Visibility="Collapsed" />
+            </StackPanel>
+        </CheckBox>
+
         <Border Background="#F0F0F2" CornerRadius="6" Padding="14,12" Margin="0,6,0,16">
             <StackPanel>
                 <TextBlock x:Name="PermissionText" Margin="0,0,0,4" />

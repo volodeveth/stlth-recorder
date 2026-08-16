@@ -165,6 +165,62 @@ public sealed class SessionStore
     }
 
     /// <summary>
+    /// Чи можна видаляти вихідні доріжки після розпізнавання.
+    ///
+    /// Чиста функція, бо це рішення про безповоротну втрату даних, і воно мусить бути
+    /// перевіреним, а не вгаданим по ходу.
+    ///
+    /// Умова друга — не формальність. Транскрипт без жодної репліки означає, що
+    /// розпізнати не вдалося або говорити не було кому. Видалити аудіо в цей момент —
+    /// найгірший можливий результат: запис зник, а натомість лишився файл із написом
+    /// «мовлення не розпізнано».
+    /// </summary>
+    public static bool MayRemoveAudio(bool enabled, bool transcriptHasSpeech)
+        => enabled && transcriptHasSpeech;
+
+    /// <summary>
+    /// Видалити вихідні доріжки, лишивши все похідне: зведення, транскрипт, метадані.
+    /// </summary>
+    /// <returns>Скільки байтів звільнено.</returns>
+    public long RemoveAudio(string sessionDir)
+    {
+        long freed = 0;
+
+        foreach (var name in new[] { Track.Mic.File, Track.System.File })
+        {
+            var path = Path.Combine(sessionDir, name);
+            try
+            {
+                var info = new FileInfo(path);
+                if (!info.Exists)
+                {
+                    continue;
+                }
+
+                freed += info.Length;
+                File.Delete(path);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Файл зайнятий — лишається на місці. Наступного разу видалиться.
+            }
+        }
+
+        if (freed > 0)
+        {
+            try
+            {
+                Update(sessionDir, meta => meta.AudioRemovedAt = DateTimeOffset.Now);
+            }
+            catch (Exception e) when (e is IOException or System.Text.Json.JsonException)
+            {
+            }
+        }
+
+        return freed;
+    }
+
+    /// <summary>
     /// Зафіксувати, що поруч із доріжками з'явилося зведення.
     ///
     /// Пишеться постфактум, а не в <see cref="Complete"/>: зведення робиться у фоні і

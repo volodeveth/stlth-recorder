@@ -53,6 +53,15 @@ internal static class TranscriptionService
             try
             {
                 var path = await transcriber.TranscribeAsync(sessionDir);
+
+                // Видалення — останнім і лише за виконаної умови. Помилка тут не має
+                // забрати з собою транскрипт, який щойно вдалося зробити.
+                if (SessionStore.MayRemoveAudio(App.Settings.DeleteAudioAfterTranscription,
+                                                transcriber.LastRunHadSpeech))
+                {
+                    store.RemoveAudio(sessionDir);
+                }
+
                 onDone(path, null);
             }
             catch (Exception e) when (e is TranscriptionException or IOException

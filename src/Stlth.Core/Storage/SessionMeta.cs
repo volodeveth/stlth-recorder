@@ -77,6 +77,15 @@ public sealed class SessionMeta
     /// </summary>
     public string? MixFile { get; set; }
 
+    /// <summary>
+    /// Коли вихідні доріжки видалили після розпізнавання.
+    ///
+    /// Поле існує, щоб сесія без аудіо не виглядала зіпсованою: різниця між «файли
+    /// прибрали навмисно» і «файли зникли» має бути записана, а не відновлюватися
+    /// здогадками через півроку.
+    /// </summary>
+    public DateTimeOffset? AudioRemovedAt { get; set; }
+
     public string AppVersion { get; set; } = "0.0.0";
     public string OsVersion { get; set; } = string.Empty;
 }

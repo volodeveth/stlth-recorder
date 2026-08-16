@@ -99,8 +99,18 @@ public sealed partial class Transcriber
 
         var target = Path.Combine(sessionDir, FileName);
         await File.WriteAllTextAsync(target, Render(sessionDir, lines), Encoding.UTF8, cancellation);
+
+        LastRunHadSpeech = lines.Count > 0;
         return target;
     }
+
+    /// <summary>
+    /// Чи знайшлося в останньому прогоні бодай одне слово.
+    ///
+    /// Потрібно тому, хто вирішує, чи можна видаляти аудіо: транскрипт існує завжди,
+    /// навіть коли розпізнавати не було чого.
+    /// </summary>
+    public bool LastRunHadSpeech { get; private set; }
 
     private async Task<List<Line>> RunAsync(string audio, string speaker, CancellationToken cancellation)
     {

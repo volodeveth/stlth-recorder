@@ -4,13 +4,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Authors>Volodymyr</Authors>
     <Product>STLTH Recorder</Product>
     <Company>Volodymyr</Company>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 </Project>
+
 
 
 

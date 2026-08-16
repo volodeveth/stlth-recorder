@@ -64,6 +64,9 @@ the microphone permission state, and settings.
 └── transcript.md  optional, local transcription
 ```
 
+The two `.wav` files can be deleted automatically after transcription — see
+[below](#deleting-the-audio-afterwards). That is off by default.
+
 ## How synchronisation holds
 
 The microphone and the playback device are two different devices with two different
@@ -140,6 +143,23 @@ mostly silence. Verified on a real recording — without VAD, forty seconds of r
 produced four invented Ukrainian sentences, complete with punctuation.
 
 The recognition language follows the interface language.
+
+### Deleting the audio afterwards
+
+There is an option — **off by default** — to delete the source tracks once a session has
+been transcribed. An hour of conversation is roughly 700 MB in the two tracks against
+~43 MB for the mixdown, so the saving is real. So is the loss: the originals cannot be
+recovered from anything.
+
+It only fires when the transcript actually contains speech. An empty transcript means
+recognition found nothing — deleting the audio at that moment would be the worst
+possible outcome: the recording gone, and a file saying "no speech recognised" left in
+its place.
+
+The mixdown and the transcript are kept. If you have also switched the mixdown off,
+the settings window says so plainly: nothing but text will remain. The deletion is
+recorded in `meta.json`, so a session without audio never looks damaged — the
+difference between "removed on purpose" and "vanished" stays written down.
 
 > On systems with Smart App Control enabled, the unsigned `whisper-cli.exe` may be
 > blocked — the app detects that specifically and says so plainly instead of failing

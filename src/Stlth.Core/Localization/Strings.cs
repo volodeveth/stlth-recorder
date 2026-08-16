@@ -191,6 +191,22 @@ public static class Strings
         Pick("Спершу встановіть моделі — у меню будь-якої сесії.",
              "Install the models first — from any session's menu.");
 
+    public static string DeleteAudioLabel =>
+        Pick("Видаляти аудіо після розпізнавання",
+             "Delete the audio after transcription");
+
+    public static string DeleteAudioHint =>
+        Pick("Вихідні доріжки видаляються назавжди, лишаються транскрипт і зведений файл. Година розмови — це ~700 МБ проти ~43 МБ. Спрацьовує лише тоді, коли в транскрипті є мовлення.",
+             "The source tracks are deleted for good; the transcript and the mixdown remain. An hour of talking is ~700 MB against ~43 MB. Only applies when the transcript actually contains speech.");
+
+    public static string DeleteAudioNoMixdown =>
+        Pick("Зведений файл вимкнено — після видалення доріжок від сесії лишиться тільки текст.",
+             "The mixdown is switched off — once the tracks are gone, only text remains of the session.");
+
+    public static string AudioRemoved(string label) =>
+        Pick($"Аудіо сесії {label} видалено після розпізнавання.",
+             $"The audio of session {label} was deleted after transcription.");
+
     public static string LanguageLabel => Pick("Мова", "Language");
 
     public static string LanguageHint =>

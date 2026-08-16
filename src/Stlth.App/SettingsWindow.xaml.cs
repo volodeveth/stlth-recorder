@@ -21,6 +21,7 @@ public partial class SettingsWindow : Window
         Reminders.IsChecked = App.Settings.MeetingReminders;
         Mixdown.IsChecked = App.Settings.BuildMixdown;
         AutoTranscribe.IsChecked = App.Settings.AutoTranscribe;
+        DeleteAudio.IsChecked = App.Settings.DeleteAudioAfterTranscription;
 
         ApplyLanguage();
         _loaded = true;
@@ -56,6 +57,18 @@ public partial class SettingsWindow : Window
         AutoTranscribeWarning.Visibility = new Transcriber().IsAvailable
             ? Visibility.Collapsed
             : Visibility.Visible;
+
+        DeleteAudioLabel.Text = Strings.DeleteAudioLabel;
+        DeleteAudioHint.Text = Strings.DeleteAudioHint;
+
+        // Разом із вимкненим зведенням ця опція лишає від сесії саму лише текстову
+        // розшифровку. Це законний вибір, але людина має зробити його з відкритими
+        // очима, а не виявити через тиждень.
+        DeleteAudioWarning.Text = Strings.DeleteAudioNoMixdown;
+        DeleteAudioWarning.Visibility =
+            App.Settings.DeleteAudioAfterTranscription && !App.Settings.BuildMixdown
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         PermissionText.Text = MicrophonePermission.Describe(App.Settings.RememberedMicPermission);
 
@@ -93,7 +106,10 @@ public partial class SettingsWindow : Window
         App.Settings.MeetingReminders = Reminders.IsChecked == true;
         App.Settings.BuildMixdown = Mixdown.IsChecked == true;
         App.Settings.AutoTranscribe = AutoTranscribe.IsChecked == true;
+        App.Settings.DeleteAudioAfterTranscription = DeleteAudio.IsChecked == true;
         App.Settings.Save();
+
+        ApplyLanguage();
 
         // Реєстр правиться одразу, а не «колись при виході».
         Core.Settings.Autostart.Apply(App.Settings.StartWithWindows,
