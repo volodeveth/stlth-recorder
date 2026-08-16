@@ -1,0 +1,35 @@
+# Project instructions for the AI assistant — local only
+CLAUDE.md
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+
+# Build output
+build/
+dist/
+publish/
+installer/Output/
+
+# Audio, models, sessions — never in git
+*.wav
+*.m4a
+*.caf
+*.mp3
+*.bin
+models/
+sessions/
+
+# Local tooling
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db
+desktop.ini
