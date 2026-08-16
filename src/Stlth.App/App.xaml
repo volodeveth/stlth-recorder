@@ -22,13 +22,17 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
-        <Style x:Key="Title" TargetType="TextBlock">
+        <!-- BasedOn тут обов'язковий, а не оздоба: іменований стиль у WPF НЕ успадковує
+             неявний стиль того самого типу. Без нього TextWrapping="Wrap" згори до цих
+             стилів не доходить, і кожен довгий рядок у діалогах просто обрізається
+             по правому краю — що й сталося у вікні транскрибації. -->
+        <Style x:Key="Title" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="19" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
 
-        <Style x:Key="Secondary" TargetType="TextBlock">
+        <Style x:Key="Secondary" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
             <Setter Property="FontSize" Value="13" />
         </Style>

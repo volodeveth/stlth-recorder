@@ -31,7 +31,7 @@ public class ModelInstallerTests : IDisposable
     {
         var model = ModelInstaller.Required[1];
         var path = Path.Combine(_dir, model.Name);
-        File.WriteAllBytes(path, new byte[model.Bytes / 2]);
+        File.WriteAllBytes(path, new byte[model.ApproxBytes / 2]);
 
         Assert.False(ModelInstaller.IsComplete(path, model));
     }
@@ -41,9 +41,31 @@ public class ModelInstallerTests : IDisposable
     {
         var model = ModelInstaller.Required[1];
         var path = Path.Combine(_dir, model.Name);
-        File.WriteAllBytes(path, new byte[model.Bytes]);
+        File.WriteAllBytes(path, new byte[model.ApproxBytes]);
 
         Assert.True(ModelInstaller.IsComplete(path, model));
+    }
+
+    [Fact]
+    public void A_reuploaded_model_a_few_bytes_off_is_still_a_model()
+    {
+        // Причина, з якої точний розмір більше не є критерієм: зашита константа
+        // розійшлася з реальним файлом на 405 байтів, після чого перша спроба
+        // оголошувала завантаження неповним, а друга просила діапазон за межею
+        // файлу і отримувала 416.
+        var model = ModelInstaller.Required[0];
+        var path = Path.Combine(_dir, model.Name);
+        File.WriteAllBytes(path, new byte[model.ApproxBytes - 405]);
+
+        Assert.True(ModelInstaller.IsComplete(path, model));
+    }
+
+    [Fact]
+    public void The_declared_size_is_an_estimate_not_a_gate()
+    {
+        // Він потрібен рівно для двох речей: показати вагу до завантаження і
+        // намалювати прогрес.
+        Assert.All(ModelInstaller.Required, model => Assert.True(model.ApproxBytes > 0));
     }
 
     [Fact]
@@ -132,6 +154,26 @@ public class TranscriberTests
     [Fact]
     public void An_empty_transcript_says_so_plainly()
         => Assert.Contains("не розпізнано", Transcriber.Render(@"C:\sessions\abc", []));
+
+    [Fact]
+    public void A_file_whisper_could_not_read_is_not_mistaken_for_silence()
+    {
+        // whisper-cli виходить із кодом 0 навіть тоді, коли не прочитав аудіо, і
+        // каже про це лише в stderr. Без цієї перевірки нечитабельна доріжка
+        // виглядала б у транскрипті так само, як мовчазна.
+        Assert.True(Transcriber.FailedToRead(
+            "read_audio_data: failed to read audio data\nerror: failed to read audio file 'mic.wav'"));
+    }
+
+    [Fact]
+    public void Ordinary_whisper_chatter_is_not_treated_as_a_failure()
+    {
+        // Порожній результат сам по собі нормальний: у сесії справді могло не бути
+        // мовлення.
+        Assert.False(Transcriber.FailedToRead(
+            "load_backend: loaded CPU backend from ggml-cpu-alderlake.dll\n" +
+            "read_audio_data: trying to decode with miniaudio"));
+    }
 
     [Fact]
     public void Unavailable_transcription_explains_itself()

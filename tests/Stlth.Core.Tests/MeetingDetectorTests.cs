@@ -113,8 +113,8 @@ public class MeetingWatcherTests
     [Fact]
     public void Mute_and_unmute_do_not_announce_a_second_meeting()
     {
-        // Живий прогін на an earlier build оголосив одну розмову двічі за тридцять дві
-        // секунди рівно через це.
+        // Без витримки живий прогін оголошує одну розмову двічі за півхвилини —
+        // рівно стільки, скільки триває пауза з вимкненим мікрофоном.
         var probe = new Probe { Holder = Zoom };
         var watcher = new MeetingWatcher(probe.Read);
         var announced = new List<Meeting>();

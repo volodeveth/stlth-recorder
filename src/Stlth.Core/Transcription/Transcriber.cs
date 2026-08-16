@@ -111,7 +111,10 @@ public sealed partial class Transcriber
             "-m", _models.PathOf(ModelInstaller.Required[0]),
             "-f", audio,
             "-l", "uk",
-            "--output-txt", "false",
+            // Результат читається зі stdout, тож жодних вихідних файлів не просимо.
+            // `--output-txt` тут був би не просто зайвим, а шкідливим: це булевий
+            // перемикач без значення, і дописане до нього «false» whisper прийняв би
+            // за ще одне ім'я аудіофайлу.
             "--no-prints",
             // VAD — не оздоба: без нього модель заповнює тишу вигадкою, а зустріч
             // здебільшого з тиші й складається.
@@ -148,7 +151,20 @@ public sealed partial class Transcriber
                 $"whisper-cli завершився з кодом {process.ExitCode}: {errors.Trim()}");
         }
 
-        return Parse(output, speaker);
+        var lines = Parse(output, speaker);
+
+        // whisper-cli виходить із кодом 0 навіть тоді, коли не зміг прочитати
+        // аудіофайл — про невдачу він каже лише рядком у stderr. Без цієї перевірки
+        // нечитабельна доріжка виглядала б для людини як тиша: транскрипт із написом
+        // «мовлення не розпізнано» і жодного натяку, що насправді сталося.
+        if (lines.Count == 0 && FailedToRead(errors))
+        {
+            throw new TranscriptionException(
+                $"whisper-cli не зміг прочитати {Path.GetFileName(audio)}. " +
+                "Файл пошкоджений або має несподіваний формат.");
+        }
+
+        return lines;
     }
 
     /// <summary>
@@ -177,6 +193,16 @@ public sealed partial class Transcriber
             throw new TranscriptionException($"Не вдалося запустити whisper-cli.exe: {e.Message}");
         }
     }
+
+    /// <summary>
+    /// Чи скаржився whisper на неможливість прочитати аудіо.
+    ///
+    /// Порожній результат сам по собі нормальний: у сесії справді могло не бути
+    /// мовлення. Відрізнити тишу від нечитабельного файлу можна лише за stderr.
+    /// </summary>
+    internal static bool FailedToRead(string errors) =>
+        errors.Contains("failed to read", StringComparison.OrdinalIgnoreCase) ||
+        errors.Contains("error: failed", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Рядки виду <c>[00:00:12.340 --&gt; 00:00:15.000]   текст</c>.</summary>
     internal static List<Line> Parse(string output, string speaker)

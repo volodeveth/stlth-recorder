@@ -1,10 +1,16 @@
-using System.Security.Cryptography;
+using System.Net;
+using System.Net.Http.Headers;
 
 namespace Stlth.Core.Transcription;
 
 /// <summary>Модель, яку треба довантажити.</summary>
-/// <param name="Bytes">Очікуваний розмір — перша й найдешевша перевірка цілісності.</param>
-public sealed record ModelSpec(string Name, string Url, long Bytes, string? Sha256 = null);
+/// <param name="ApproxBytes">
+/// Приблизна вага — щоб показати людині число до того, як почати качати півгігабайта,
+/// і щоб малювати прогрес. <b>Не критерій цілісності:</b> моделі час від часу
+/// перезаливають, і файл, що відрізняється на кілька сотень байтів від зашитої
+/// константи, — це нова версія моделі, а не пошкоджений файл.
+/// </param>
+public sealed record ModelSpec(string Name, string Url, long ApproxBytes);
 
 public sealed class ModelInstallException(string message) : Exception(message);
 
@@ -23,6 +29,13 @@ public sealed class ModelInstallException(string message) : Exception(message);
 public sealed class ModelInstaller
 {
     /// <summary>
+    /// Нижче цієї частки від очікуваної ваги файл вважається сміттям, а не моделлю.
+    ///
+    /// Поріг м'який навмисно: точний розмір належить серверу, а не нам.
+    /// </summary>
+    private const double MinimumShare = 0.9;
+
+    /// <summary>
     /// Обидві моделі потрібні, і друга — не опція.
     ///
     /// Whisper на вхідному вікні завжди щось декодує: дай йому тишу — отримаєш
@@ -35,11 +48,11 @@ public sealed class ModelInstaller
         new ModelSpec(
             "ggml-large-v3-turbo-q5_0.bin",
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true",
-            574_041_600),
+            574_041_195),
         new ModelSpec(
             "ggml-silero-v5.1.2.bin",
             "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin?download=true",
-            884_800),
+            885_098),
     ];
 
     private readonly HttpClient _http;
@@ -58,20 +71,23 @@ public sealed class ModelInstaller
     public string Directory { get; }
 
     /// <summary>Скільки важать усі моделі разом — це число показують до завантаження.</summary>
-    public static long TotalBytes => Required.Sum(model => model.Bytes);
+    public static long TotalBytes => Required.Sum(model => model.ApproxBytes);
 
     public bool IsInstalled => Required.All(model => IsComplete(PathOf(model), model));
 
     public string PathOf(ModelSpec model) => Path.Combine(Directory, model.Name);
 
-    /// <summary>Модель, а не її недокачаний хвіст.</summary>
+    /// <summary>
+    /// Модель, а не її недокачаний хвіст.
+    ///
+    /// У кінцеве ім'я файл потрапляє лише після перевіреного завантаження, тож саме
+    /// існування файлу вже майже все каже. Поріг на розмір лишається запобіжником
+    /// проти обірваного файлу від старих версій.
+    /// </summary>
     public static bool IsComplete(string path, ModelSpec model)
     {
         var info = new FileInfo(path);
-
-        // Розмір — перша перевірка: обірваний файл виглядає як модель і поводиться
-        // як сміття, а помітити це на етапі розпізнавання набагато дорожче.
-        return info.Exists && info.Length == model.Bytes;
+        return info.Exists && info.Length >= model.ApproxBytes * MinimumShare;
     }
 
     /// <param name="progress">Частка від 0 до 1 по всіх моделях разом.</param>
@@ -90,7 +106,7 @@ public sealed class ModelInstaller
                     Math.Min(1.0, (alreadyDone + bytes) / (double)TotalBytes))),
                 cancellation);
 
-            done += model.Bytes;
+            done += model.ApproxBytes;
         }
 
         progress?.Report(1.0);
@@ -98,40 +114,51 @@ public sealed class ModelInstaller
 
     private async Task DownloadAsync(ModelSpec model,
                                      IProgress<long> progress,
-                                     CancellationToken cancellation)
+                                     CancellationToken cancellation,
+                                     bool fromScratch = false)
     {
         var target = PathOf(model);
         if (IsComplete(target, model))
         {
-            progress.Report(model.Bytes);
+            progress.Report(model.ApproxBytes);
             return;
         }
 
         var partial = target + ".part";
-        var have = new FileInfo(partial) is { Exists: true } info ? info.Length : 0;
-
-        // Хвіст довший за модель — це не наш хвіст.
-        if (have > model.Bytes)
+        if (fromScratch && File.Exists(partial))
         {
             File.Delete(partial);
-            have = 0;
         }
+
+        var have = new FileInfo(partial) is { Exists: true } info ? info.Length : 0;
 
         using var request = new HttpRequestMessage(HttpMethod.Get, model.Url);
         if (have > 0)
         {
-            request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(have, null);
+            request.Headers.Range = new RangeHeaderValue(have, null);
         }
 
         using var response = await _http.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellation);
 
-        // Сервер не підтримав продовження і почав спочатку — приймаємо це чесно,
-        // а не дописуємо початок файлу в його середину.
-        var append = have > 0 && response.StatusCode == System.Net.HttpStatusCode.PartialContent;
-        if (!append)
+        // 416 означає, що ми просимо байти за межею файлу — тобто наш хвіст уже не
+        // коротший за те, що є на сервері. Якщо довжини збігаються, файл насправді
+        // готовий: це рівно той випадок, коли зашита константа розміру розійшлася з
+        // реальністю. Інакше хвіст чужий, і його треба викинути.
+        if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
         {
-            have = 0;
+            if (response.Content.Headers.ContentRange?.Length is { } total && have == total)
+            {
+                Finalise(partial, target);
+                progress.Report(have);
+                return;
+            }
+
+            if (!fromScratch)
+            {
+                await DownloadAsync(model, progress, cancellation, fromScratch: true);
+                return;
+            }
         }
 
         if (!response.IsSuccessStatusCode)
@@ -139,6 +166,19 @@ public sealed class ModelInstaller
             throw new ModelInstallException(
                 $"Не вдалося завантажити {model.Name}: сервер відповів {(int)response.StatusCode}");
         }
+
+        // Сервер не підтримав продовження і почав спочатку — приймаємо це чесно,
+        // а не дописуємо початок файлу в його середину.
+        var append = have > 0 && response.StatusCode == HttpStatusCode.PartialContent;
+        if (!append)
+        {
+            have = 0;
+        }
+
+        // Скільки має вийти — знає сервер, а не ми.
+        var expected = response.Content.Headers.ContentLength is { } length
+            ? have + length
+            : (long?)null;
 
         await using (var source = await response.Content.ReadAsStreamAsync(cancellation))
         await using (var destination = new FileStream(
@@ -155,27 +195,21 @@ public sealed class ModelInstaller
             }
         }
 
-        if (new FileInfo(partial).Length != model.Bytes)
+        var actual = new FileInfo(partial).Length;
+        if (expected is { } total2 && actual != total2)
         {
             throw new ModelInstallException(
-                $"{model.Name} завантажився не повністю — спробуйте ще раз, завантаження продовжиться.");
+                $"{model.Name} завантажився не повністю ({actual:N0} з {total2:N0} Б) — " +
+                "спробуйте ще раз, завантаження продовжиться.");
         }
 
-        if (model.Sha256 is { } expected && !Matches(partial, expected))
-        {
-            File.Delete(partial);
-            throw new ModelInstallException($"{model.Name} пошкоджений при завантаженні.");
-        }
+        Finalise(partial, target);
+    }
 
-        // У кінцеве ім'я файл потрапляє лише цілим: інакше наступний запуск вважав
-        // би недокачану модель встановленою.
+    /// <summary>
+    /// У кінцеве ім'я файл потрапляє лише цілим: інакше наступний запуск вважав би
+    /// недокачану модель встановленою.
+    /// </summary>
+    private static void Finalise(string partial, string target) =>
         File.Move(partial, target, overwrite: true);
-    }
-
-    private static bool Matches(string path, string expected)
-    {
-        using var stream = File.OpenRead(path);
-        var hash = Convert.ToHexString(SHA256.HashData(stream));
-        return hash.Equals(expected, StringComparison.OrdinalIgnoreCase);
-    }
 }

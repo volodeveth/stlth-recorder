@@ -28,6 +28,12 @@ switch (args[0])
     case "probe":
         return Probe(args.Length > 1 ? args[1] : "5");
 
+    case "models":
+        return Models();
+
+    case "transcribe":
+        return Transcribe(args.Length > 1 ? args[1] : string.Empty);
+
     case "mix":
         return Mix(args.Length > 1 ? args[1] : string.Empty);
 
@@ -50,6 +56,8 @@ static void PrintUsage()
           stlth-cli probe <секунди>    подивитися на сирі пакети і їхні таймстемпи
           stlth-cli drift <с> [крок]   зміряти розбіжність каналів регресією
           stlth-cli mix <тека>         зібрати session.m4a для сесії
+          stlth-cli models             довантажити моделі транскрибації
+          stlth-cli transcribe <тека>  розпізнати сесію
         """);
 }
 
@@ -148,6 +156,103 @@ static int Probe(string secondsArg)
     }
 
     return 0;
+}
+
+/// <summary>Розпізнати сесію тим самим кодом, яким це робить застосунок.</summary>
+static int Transcribe(string dir)
+{
+    if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+    {
+        Console.Error.WriteLine("Вкажіть теку сесії.");
+        return 1;
+    }
+
+    // Застосунок шукає whisper поруч із собою; стенд запускається з іншої теки, тож
+    // шлях до встановленої копії передається явно.
+    var installed = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "STLTH Recorder", "whisper", "whisper-cli.exe");
+
+    var executable = File.Exists(installed)
+        ? installed
+        : Stlth.Core.Transcription.Transcriber.DefaultExecutable;
+
+    var transcriber = new Stlth.Core.Transcription.Transcriber(executable);
+
+    if (transcriber.UnavailableReason is { } reason)
+    {
+        Console.Error.WriteLine(reason);
+        return 1;
+    }
+
+    try
+    {
+        var started = DateTimeOffset.Now;
+        var progress = new Progress<string>(Console.WriteLine);
+        var path = transcriber.TranscribeAsync(dir, progress).GetAwaiter().GetResult();
+        var elapsed = (DateTimeOffset.Now - started).TotalSeconds;
+
+        Console.WriteLine($"\n{path}  ({elapsed:F1} с)\n");
+        Console.WriteLine(File.ReadAllText(path));
+        return 0;
+    }
+    catch (Exception e)
+    {
+        Console.Error.WriteLine($"{e.GetType().Name}: {e.Message}");
+        return 1;
+    }
+}
+
+/// <summary>
+/// Довантажити моделі транскрибації з консолі — і побачити помилку повністю, а не
+/// одним рядком у діалозі.
+/// </summary>
+static int Models()
+{
+    var installer = new Stlth.Core.Transcription.ModelInstaller();
+
+    Console.WriteLine($"Тека:  {installer.Directory}");
+    Console.WriteLine($"Разом: ≈ {Stlth.Core.Transcription.ModelInstaller.TotalBytes / 1_048_576} МБ");
+
+    foreach (var model in Stlth.Core.Transcription.ModelInstaller.Required)
+    {
+        var path = installer.PathOf(model);
+        var state = Stlth.Core.Transcription.ModelInstaller.IsComplete(path, model) ? "є" : "немає";
+        Console.WriteLine($"  {model.Name,-34} {state}");
+    }
+
+    if (installer.IsInstalled)
+    {
+        Console.WriteLine("\nУсі моделі на місці.");
+        return 0;
+    }
+
+    Console.WriteLine();
+
+    var lastShown = -1;
+    var progress = new Progress<double>(value =>
+    {
+        var percent = (int)(value * 100);
+        if (percent == lastShown)
+        {
+            return;
+        }
+
+        lastShown = percent;
+        Console.Write($"\rЗавантажено {percent,3}%");
+    });
+
+    try
+    {
+        installer.InstallAsync(progress).GetAwaiter().GetResult();
+        Console.WriteLine("\nГотово.");
+        return 0;
+    }
+    catch (Exception e)
+    {
+        Console.Error.WriteLine($"\n{e.GetType().Name}: {e.Message}");
+        return 1;
+    }
 }
 
 /// <summary>

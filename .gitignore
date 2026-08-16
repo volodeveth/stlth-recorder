@@ -1,5 +1,7 @@
-# Project instructions for the AI assistant — local only
+# Working notes — local only
 CLAUDE.md
+docs/ENGINEERING_NOTES.md
+docs/design/
 
 # .NET
 bin/
