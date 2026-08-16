@@ -23,6 +23,12 @@ public sealed partial class Transcriber
 {
     public const string FileName = "transcript.md";
 
+    /// <summary>
+    /// <c>ERROR_VIRUS_INFECTED</c> — цим кодом Windows відповідає, коли запуск
+    /// заблокувала політика Application Control, а не антивірус.
+    /// </summary>
+    private const int BlockedByPolicy = 4551;
+
     private readonly string _executable;
     private readonly ModelInstaller _models;
 
@@ -130,8 +136,24 @@ public sealed partial class Transcriber
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new TranscriptionException("Не вдалося запустити whisper-cli.exe");
+        Process process;
+        try
+        {
+            process = Process.Start(startInfo)
+                ?? throw new TranscriptionException("Не вдалося запустити whisper-cli.exe");
+        }
+        catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == BlockedByPolicy)
+        {
+            // Smart App Control блокує непідписані сторонні бінарники наглухо: у нього
+            // немає «дозволити один раз», а вимкнути його можна лише незворотно.
+            // Тому тут не «спробуйте ще раз», а пояснення, що саме сталося.
+            throw new TranscriptionException(
+                "Windows заблокував whisper-cli.exe політикою Smart App Control. " +
+                "Транскрибація недоступна, доки цей файл не підписаний або політику не змінено. " +
+                "Запис і зведення від цього не залежать.");
+        }
+
+        using var _ = process;
 
         var output = await process.StandardOutput.ReadToEndAsync(cancellation);
         var errors = await process.StandardError.ReadToEndAsync(cancellation);
