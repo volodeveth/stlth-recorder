@@ -28,6 +28,13 @@ switch (args[0])
     case "probe":
         return Probe(args.Length > 1 ? args[1] : "5");
 
+    case "mix":
+        return Mix(args.Length > 1 ? args[1] : string.Empty);
+
+    case "drift":
+        return Stlth.Cli.DriftBench.Run(args.Length > 1 ? args[1] : "3600",
+                                        args.Length > 2 ? args[2] : "10");
+
     default:
         PrintUsage();
         return 1;
@@ -41,6 +48,8 @@ static void PrintUsage()
           stlth-cli record <секунди>   записати сесію і надрукувати звіт
           stlth-cli devices            показати пристрої за замовчуванням
           stlth-cli probe <секунди>    подивитися на сирі пакети і їхні таймстемпи
+          stlth-cli drift <с> [крок]   зміряти розбіжність каналів регресією
+          stlth-cli mix <тека>         зібрати session.m4a для сесії
         """);
 }
 
@@ -139,6 +148,41 @@ static int Probe(string secondsArg)
     }
 
     return 0;
+}
+
+/// <summary>
+/// Зібрати зведення руками. У застосунку це робиться у фоні і помилку ковтає —
+/// файл похідний і сесії не псує. Тут навпаки: причина показується повністю, бо
+/// саме для розбору полiтів команда й потрібна.
+/// </summary>
+static int Mix(string dir)
+{
+    if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+    {
+        Console.Error.WriteLine("Вкажіть теку сесії.");
+        return 1;
+    }
+
+    try
+    {
+        var started = DateTimeOffset.Now;
+        var path = Stlth.Core.Mixdown.SessionMixer.Mix(dir, force: true);
+        var elapsed = (DateTimeOffset.Now - started).TotalSeconds;
+
+        Console.WriteLine($"{path}");
+        Console.WriteLine($"{new FileInfo(path).Length / 1024.0 / 1024.0:F1} МБ за {elapsed:F1} с");
+        return 0;
+    }
+    catch (Exception e)
+    {
+        Console.Error.WriteLine($"{e.GetType().Name}: {e.Message}");
+        if (e.StackTrace is { } trace)
+        {
+            Console.Error.WriteLine(trace);
+        }
+
+        return 1;
+    }
 }
 
 static int Record(string secondsArg)

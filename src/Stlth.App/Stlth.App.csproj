@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Трей — це Shell_NotifyIcon; у WPF власної обгортки немає, а WinForms-івська
+         зріла й не тягне за собою жодного вікна. Діалоги при цьому лишаються WPF. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Resources\idle.ico</ApplicationIcon>
+    <AssemblyName>STLTH Recorder</AssemblyName>
+    <RootNamespace>Stlth.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stlth.Core\Stlth.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\idle.ico" />
+    <Resource Include="Resources\recording.ico" />
+  </ItemGroup>
+
+</Project>
