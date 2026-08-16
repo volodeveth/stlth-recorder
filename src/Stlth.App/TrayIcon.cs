@@ -362,6 +362,5 @@ public sealed class TrayIcon : IDisposable
         var version = typeof(TrayIcon).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
         Notify("STLTH Recorder " + version,
                "Запис розмови у два синхронні канали. Нічого не залишає цей комп'ютер.");
-        _ = Process.GetCurrentProcess();
     }
 }
