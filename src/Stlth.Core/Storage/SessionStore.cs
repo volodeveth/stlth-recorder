@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 
 namespace Stlth.Core.Storage;
@@ -28,13 +29,13 @@ public sealed class SessionStore
     public SessionHandle Begin(DateTimeOffset consentAt, string inputDevice, string outputDevice)
     {
         var id = Guid.NewGuid();
-        var dir = Path.Combine(Root, id.ToString());
-        Directory.CreateDirectory(dir);
+        var startedAt = DateTimeOffset.Now;
+        var dir = CreateDirectory(startedAt);
 
         var meta = new SessionMeta
         {
             SessionId = id,
-            StartedAt = DateTimeOffset.Now,
+            StartedAt = startedAt,
             DurationMs = 0,
             Status = SessionStatus.Recording,
             Consent = new Consent(true, consentAt),
@@ -80,12 +81,17 @@ public sealed class SessionStore
     public void AppendDeviceChange(SessionHandle handle, DateTimeOffset at, string? input, string? output)
         => Update(handle.Dir, meta => meta.DeviceChanges = [.. meta.DeviceChanges, new DeviceChange(at, input, output)]);
 
-    public void Delete(Guid id)
+    /// <summary>
+    /// Видалити сесію за її текою.
+    ///
+    /// Саме за текою, а не за ідентифікатором: ім'я теки більше не є UUID, і виводити
+    /// шлях із метаданих означало б будувати нове припущення на місці щойно знятого.
+    /// </summary>
+    public void Delete(string sessionDir)
     {
-        var dir = Path.Combine(Root, id.ToString());
-        if (Directory.Exists(dir))
+        if (Directory.Exists(sessionDir))
         {
-            Directory.Delete(dir, recursive: true);
+            Directory.Delete(sessionDir, recursive: true);
         }
     }
 
@@ -93,24 +99,24 @@ public sealed class SessionStore
     /// Усі сесії, найновіші перші. Нечитабельні теки пропускаються, а не валять
     /// увесь перелік: одна зіпсована сесія не має ховати решту.
     /// </summary>
-    public IReadOnlyList<SessionMeta> List()
+    public IReadOnlyList<SessionEntry> List()
     {
         if (!Directory.Exists(Root))
         {
             return [];
         }
 
-        var result = new List<SessionMeta>();
+        var result = new List<SessionEntry>();
         foreach (var dir in Directory.EnumerateDirectories(Root))
         {
             var meta = TryLoad(dir);
             if (meta is not null)
             {
-                result.Add(meta);
+                result.Add(new SessionEntry(meta, dir));
             }
         }
 
-        result.Sort((a, b) => b.StartedAt.CompareTo(a.StartedAt));
+        result.Sort((a, b) => b.Meta.StartedAt.CompareTo(a.Meta.StartedAt));
         return result;
     }
 
@@ -236,6 +242,42 @@ public sealed class SessionStore
         {
             // Похідний файл не вартий того, щоб через нього щось падало.
         }
+    }
+
+    /// <summary>
+    /// Формат імені теки сесії: <c>2026-08-17 09-15-30</c>.
+    ///
+    /// Порядок від найбільшого до найменшого — щоб теки сортувалися за алфавітом і
+    /// одночасно хронологічно; у Провіднику це те саме сортування, яке людина й
+    /// очікує побачити.
+    ///
+    /// Двокрапки в іменах файлів Windows не приймає, тож у часі вони замінені на
+    /// дефіси. Назва свідомо читається людиною: UUID у теці не каже нічого, а
+    /// «17 серпня, 9:15» каже все. Сам UUID нікуди не подівся — він лишається в
+    /// <c>meta.json</c> як стала ідентичність сесії.
+    /// </summary>
+    public const string DirectoryFormat = "yyyy-MM-dd HH-mm-ss";
+
+    /// <summary>
+    /// Створити теку під сесію, що почалася в цей момент.
+    ///
+    /// Дві сесії в одну секунду створити неможливо — state machine не дає запустити
+    /// другий запис, поки триває перший. Але перейменована ззовні тека або
+    /// відновлена копія можуть зайняти ім'я, тож суфікс усе одно передбачений:
+    /// втратити сесію через збіг імен було б абсурдно дорого.
+    /// </summary>
+    private string CreateDirectory(DateTimeOffset startedAt)
+    {
+        var name = startedAt.ToString(DirectoryFormat, CultureInfo.InvariantCulture);
+        var dir = Path.Combine(Root, name);
+
+        for (var suffix = 2; Directory.Exists(dir); suffix++)
+        {
+            dir = Path.Combine(Root, $"{name} ({suffix})");
+        }
+
+        Directory.CreateDirectory(dir);
+        return dir;
     }
 
     private static string MetaPath(string dir) => Path.Combine(dir, "meta.json");

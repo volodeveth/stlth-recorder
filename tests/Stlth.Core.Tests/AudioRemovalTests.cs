@@ -88,7 +88,7 @@ public class AudioRemovalTests : IDisposable
         var listed = _store.List();
 
         Assert.Single(listed);
-        Assert.Equal(handle.Id, listed[0].SessionId);
+        Assert.Equal(handle.Id, listed[0].Meta.SessionId);
     }
 
     [Fact]

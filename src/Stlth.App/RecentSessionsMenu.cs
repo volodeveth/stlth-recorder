@@ -30,9 +30,9 @@ internal static class RecentSessionsMenu
             return root;
         }
 
-        foreach (var meta in sessions.Take(MaxItems))
+        foreach (var entry in sessions.Take(MaxItems))
         {
-            root.DropDownItems.Add(BuildItem(store, meta, onChanged));
+            root.DropDownItems.Add(BuildItem(store, entry, onChanged));
         }
 
         root.DropDownItems.Add(new ToolStripSeparator());
@@ -42,9 +42,9 @@ internal static class RecentSessionsMenu
         return root;
     }
 
-    private static ToolStripMenuItem BuildItem(SessionStore store, SessionMeta meta, Action onChanged)
+    private static ToolStripMenuItem BuildItem(SessionStore store, SessionEntry entry, Action onChanged)
     {
-        var dir = Path.Combine(store.Root, meta.SessionId.ToString());
+        var (meta, dir) = entry;
         var item = new ToolStripMenuItem(Label(meta));
 
         if (meta.Status == SessionStatus.Interrupted)
@@ -92,7 +92,7 @@ internal static class RecentSessionsMenu
                 return;
             }
 
-            store.Delete(meta.SessionId);
+            store.Delete(dir);
             onChanged();
         }));
 

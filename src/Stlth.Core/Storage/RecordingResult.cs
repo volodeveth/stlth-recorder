@@ -4,6 +4,15 @@ namespace Stlth.Core.Storage;
 public sealed record SessionHandle(Guid Id, string Dir);
 
 /// <summary>
+/// Сесія на диску: метадані разом зі своєю текою.
+///
+/// Тека йде поруч навмисно. Ім'я теки — це дата й час початку, а не ідентифікатор,
+/// тож вивести шлях із метаданих більше не можна, і кожен, хто працює з сесією,
+/// отримує шлях, а не намагається його зібрати.
+/// </summary>
+public sealed record SessionEntry(SessionMeta Meta, string Dir);
+
+/// <summary>
 /// Результат одного прогону захоплення — те, що движок передає в сховище.
 /// </summary>
 /// <param name="SystemAudioDetected">

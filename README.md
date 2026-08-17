@@ -101,13 +101,20 @@ the microphone permission state, and settings.
 ## Session folder
 
 ```
-%LOCALAPPDATA%\STLTH Recorder\Sessions\<UUID>\
+%LOCALAPPDATA%\STLTH Recorder\Sessions\2026-08-17 09-26-25\
 ├── mic.wav        my voice, mono        — source of truth
 ├── system.wav     the other side, stereo — source of truth
 ├── session.m4a    mixdown for listening back (me on the left), derived
 ├── meta.json      metadata, consent, devices, duration
 └── transcript.md  optional, local transcription
 ```
+
+The folder is named after when the session started, largest unit first, so folders sort
+alphabetically and chronologically at the same time — the order you expect in Explorer.
+Colons are not allowed in Windows paths, hence the dashes in the time. The session's
+UUID has not gone anywhere; it stays in `meta.json` as the stable identity. Folders from
+older versions, named by UUID, keep working: a session is found by its `meta.json`, not
+by the shape of its name.
 
 The two `.wav` files can be deleted automatically after transcription — see
 [below](#deleting-the-audio-afterwards). That is off by default.

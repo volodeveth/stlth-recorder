@@ -55,12 +55,70 @@ public class SessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void Begin_creates_a_directory_named_after_the_session()
+    public void The_folder_is_named_by_when_the_session_started()
     {
+        // UUID у назві теки не каже нічого; дата й час кажуть усе, і в Провіднику
+        // такі теки сортуються за алфавітом і хронологічно одночасно.
         var handle = _store.Begin(DateTimeOffset.Now, "in", "out");
 
         Assert.True(Directory.Exists(handle.Dir));
-        Assert.Equal(handle.Id.ToString(), Path.GetFileName(handle.Dir));
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$", Path.GetFileName(handle.Dir));
+    }
+
+    [Fact]
+    public void The_folder_name_matches_the_recorded_start_time()
+    {
+        var handle = _store.Begin(DateTimeOffset.Now, "in", "out");
+
+        var expected = MetaOf(handle.Dir).StartedAt
+            .ToString(SessionStore.DirectoryFormat, System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal(expected, Path.GetFileName(handle.Dir));
+    }
+
+    [Fact]
+    public void Folder_names_sort_chronologically_as_text()
+    {
+        // Саме заради цього порядок від року до секунди: сортування за іменем і за
+        // часом мусять збігатися.
+        var names = new[]
+        {
+            new DateTimeOffset(2026, 1, 5, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 1, 5, 14, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 12, 31, 23, 59, 59, TimeSpan.Zero),
+        }.Select(d => d.ToString(SessionStore.DirectoryFormat,
+                                 System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+
+        Assert.Equal(names, names.OrderBy(n => n, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public void A_taken_name_does_not_cost_a_session()
+    {
+        // Дві сесії в одну секунду створити неможливо, але тека з таким іменем може
+        // з'явитися ззовні — і це не привід втратити запис.
+        var when = DateTimeOffset.Now;
+        var taken = Path.Combine(_root,
+            when.ToString(SessionStore.DirectoryFormat, System.Globalization.CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(taken);
+
+        var handle = _store.Begin(when, "in", "out");
+
+        Assert.NotEqual(taken, handle.Dir);
+        Assert.True(File.Exists(Path.Combine(handle.Dir, "meta.json")));
+    }
+
+    [Fact]
+    public void Sessions_from_older_versions_still_list()
+    {
+        // Теки, названі за UUID, лишаються читабельними: сесію знаходить meta.json,
+        // а не форма її імені.
+        var legacy = Path.Combine(_root, Guid.NewGuid().ToString());
+        Directory.CreateDirectory(legacy);
+        var handle = _store.Begin(DateTimeOffset.Now, "in", "out");
+        File.Copy(Path.Combine(handle.Dir, "meta.json"), Path.Combine(legacy, "meta.json"));
+
+        Assert.Equal(2, _store.List().Count);
     }
 
     [Fact]
@@ -182,7 +240,7 @@ public class SessionStoreTests : IDisposable
         _store.Complete(older, Result(older.Dir));
         _store.Complete(newer, Result(newer.Dir));
 
-        Assert.Equal(newer.Id, _store.List()[0].SessionId);
+        Assert.Equal(newer.Id, _store.List()[0].Meta.SessionId);
     }
 
     [Fact]
@@ -212,14 +270,14 @@ public class SessionStoreTests : IDisposable
     {
         var handle = _store.Begin(DateTimeOffset.Now, "in", "out");
 
-        _store.Delete(handle.Id);
+        _store.Delete(handle.Dir);
 
         Assert.False(Directory.Exists(handle.Dir));
     }
 
     [Fact]
     public void Deleting_a_session_that_is_gone_is_not_an_error()
-        => _store.Delete(Guid.NewGuid());
+        => _store.Delete(Path.Combine(_root, "немає"));
 
     [Fact]
     public void Note_mix_records_the_derived_file()
