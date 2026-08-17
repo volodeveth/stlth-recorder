@@ -44,13 +44,21 @@ the repository themselves. If you would rather not click through the warning, ta
 **If Windows refuses to run the installer at all** — "An Application Control policy has
 blocked this file", with no way to proceed — you have **Smart App Control** enabled.
 Unlike SmartScreen it has no "run anyway", and it judges every unsigned binary on its
-own reputation, which means a fresh build can be blocked where the previous one was
-not. Observed here: version 1.2.1's installer ran, 1.2.2's was blocked, while the
-application executable from the same build ran fine both times.
+own reputation.
 
-**On such machines take the portable ZIP.** The application itself is not what gets
-blocked — only the installer and the uninstaller are, and the portable package needs
-neither. Unpack it anywhere and run `STLTH Recorder.exe`.
+Two things were observed here, and both are worth knowing:
+
+- A fresh build can be blocked where its predecessor was not. Version 1.2.1's installer
+  ran; 1.2.2's was blocked minutes later, while the application executable from the very
+  same build ran fine both times.
+- **The block is not permanent.** The same 1.2.2 installer, unchanged and unsigned, was
+  refused once and accepted a few hours later. The verdict is a moving cloud judgement,
+  not a property of the file.
+
+So if the installer is blocked: try again later, or take the portable ZIP. **The
+application itself is not what gets blocked** — only the installer and the uninstaller
+are, and the portable package needs neither. Unpack it anywhere and run
+`STLTH Recorder.exe`.
 
 ## Uninstalling
 
@@ -259,10 +267,10 @@ tested", not "works".
   separate instrument, but there has been no hour of continuous recording to files.
 - **The SmartScreen dialog.** The installer was verified programmatically, not by a
   double click.
-- **Which builds Smart App Control will accept.** It blocked the 1.2.2 installer and
-  allowed 1.2.1's, with no change on our side that would explain it. The verdict is
-  not ours to predict, so the portable package is the dependable path on those
-  machines.
+- **Which builds Smart App Control will accept, and when.** It blocked the 1.2.2
+  installer, allowed 1.2.1's, then accepted the very same 1.2.2 file hours later
+  without a single byte changing. The verdict is neither ours to predict nor stable
+  over time, so the portable package is the dependable path on those machines.
 
 ## Development
 
