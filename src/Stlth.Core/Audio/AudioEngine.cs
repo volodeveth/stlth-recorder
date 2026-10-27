@@ -19,6 +19,7 @@ public sealed class AudioEngine : IAudioEngine
     private readonly string _sessionDir;
     private readonly List<DeviceChange> _deviceChanges = [];
     private readonly object _changeGate = new();
+    private readonly RestartGate _restartGate = new();
 
     private WasapiStream? _mic;
     private WasapiStream? _system;
@@ -104,6 +105,7 @@ public sealed class AudioEngine : IAudioEngine
         }
 
         _stopped = true;
+        _restartGate.Close();
 
         _watchdog?.Stop();
         _watchdog = null;
@@ -153,10 +155,18 @@ public sealed class AudioEngine : IAudioEngine
     public void Dispose()
     {
         _stopped = true;
+        _restartGate.Close();
+
         _watchdog?.Stop();
         _watchdog = null;
-        _monitor?.Dispose();
-        _monitor = null;
+
+        if (_monitor is not null)
+        {
+            _monitor.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+            _monitor.Dispose();
+            _monitor = null;
+        }
+
         _mic?.Dispose();
         _mic = null;
         _system?.Dispose();
@@ -204,10 +214,9 @@ public sealed class AudioEngine : IAudioEngine
 
         try
         {
-            Restart(isLoopback);
+            _restartGate.TryRun(() => Restart(isLoopback));
         }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException
-                                       or InvalidOperationException)
+        catch (Exception e) when (RestartFault.IsDeviceFault(e))
         {
             // Перезапуск не вдався — сесія триває на тому, що є. Тиша в цьому місці
             // буде записана як тиша, і доріжка лишиться потрібної довжини.
@@ -266,17 +275,16 @@ public sealed class AudioEngine : IAudioEngine
             if (input is not null)
             {
                 _inputDeviceName = input;
-                Restart(isLoopback: false);
+                _restartGate.TryRun(() => Restart(isLoopback: false));
             }
 
             if (output is not null)
             {
                 _outputDeviceName = output;
-                Restart(isLoopback: true);
+                _restartGate.TryRun(() => Restart(isLoopback: true));
             }
         }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException
-                                       or InvalidOperationException)
+        catch (Exception e) when (RestartFault.IsDeviceFault(e))
         {
             // Новий пристрій не піднявся: подія однаково лягла в meta.json, а
             // прогалину заллє тиша. Сесія лишається читабельною і чесною.
