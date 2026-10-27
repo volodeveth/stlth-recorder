@@ -25,7 +25,7 @@ public sealed class AudioEngine : IAudioEngine
     private TrackRecorder? _micTrack;
     private TrackRecorder? _systemTrack;
     private DeviceMonitor? _monitor;
-    private Timer? _watchdog;
+    private WatchdogTimer? _watchdog;
 
     private double _originSeconds;
     private string _inputDeviceName = "—";
@@ -92,8 +92,7 @@ public sealed class AudioEngine : IAudioEngine
         _monitor.DefaultDeviceChanged += OnDefaultDeviceChanged;
         _monitor.Start();
 
-        _watchdog = new Timer(_ => CheckStreams(), null,
-                              TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        _watchdog = new WatchdogTimer(CheckStreams, TimeSpan.FromSeconds(1));
     }
 
     public RecordingResult Stop()
@@ -106,7 +105,7 @@ public sealed class AudioEngine : IAudioEngine
 
         _stopped = true;
 
-        _watchdog?.Dispose();
+        _watchdog?.Stop();
         _watchdog = null;
 
         if (_monitor is not null)
@@ -153,7 +152,8 @@ public sealed class AudioEngine : IAudioEngine
 
     public void Dispose()
     {
-        _watchdog?.Dispose();
+        _stopped = true;
+        _watchdog?.Stop();
         _watchdog = null;
         _monitor?.Dispose();
         _monitor = null;

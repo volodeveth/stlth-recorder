@@ -72,17 +72,7 @@ public sealed class WasapiStream : IDisposable
     /// </summary>
     public ulong DeviceClockPosition
     {
-        get
-        {
-            try
-            {
-                return _client?.AudioClockClient.AdjustedPosition ?? 0;
-            }
-            catch (Exception e) when (e is COMException or InvalidOperationException or NullReferenceException)
-            {
-                return 0;
-            }
-        }
+        get => DeviceClock.ReadOrZero(() => _client?.AudioClockClient.AdjustedPosition ?? 0);
     }
 
     /// <param name="originSeconds">Момент старту сесії на шкалі QPC.</param>
