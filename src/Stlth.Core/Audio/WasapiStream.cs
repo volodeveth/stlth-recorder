@@ -81,6 +81,7 @@ public sealed class WasapiStream : IDisposable
         _originSeconds = originSeconds;
 
         var client = _device.AudioClient;
+        _client = client;
         var desired = new WaveFormat(AudioFormat.SampleRate, AudioFormat.BitsPerSample, _channels);
 
         var flags = AudioClientStreamFlags.AutoConvertPcm | AudioClientStreamFlags.SrcDefaultQuality;
@@ -105,8 +106,10 @@ public sealed class WasapiStream : IDisposable
             // не впирається в уже ініціалізований об'єкт — але перший треба закрити,
             // інакше він тримає COM-посилання до кінця сесії.
             client.Dispose();
+            _client = null;
 
             client = _device.AudioClient;
+            _client = client;
             var mix = client.MixFormat;
             client.Initialize(AudioClientShareMode.Shared,
                               _loopback ? AudioClientStreamFlags.Loopback : AudioClientStreamFlags.None,

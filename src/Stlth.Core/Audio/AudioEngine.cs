@@ -21,8 +21,8 @@ public sealed class AudioEngine : IAudioEngine
     private readonly object _changeGate = new();
     private readonly RestartGate _restartGate = new();
 
-    private WasapiStream? _mic;
-    private WasapiStream? _system;
+    private readonly StreamSlot<WasapiStream> _mic = new();
+    private readonly StreamSlot<WasapiStream> _system = new();
     private TrackRecorder? _micTrack;
     private TrackRecorder? _systemTrack;
     private DeviceMonitor? _monitor;
@@ -48,8 +48,6 @@ public sealed class AudioEngine : IAudioEngine
         var render = AudioDevices.DefaultRender()
             ?? throw new InvalidOperationException(
                 Localization.Strings.NoRenderDevice);
-        _outputDeviceName = AudioDevices.NameOf(render);
-
         _micTrack = new TrackRecorder(Path.Combine(_sessionDir, Track.Mic.File),
                                       AudioFormat.MicChannels, startAt: 0);
         _systemTrack = new TrackRecorder(Path.Combine(_sessionDir, Track.System.File),
@@ -66,28 +64,32 @@ public sealed class AudioEngine : IAudioEngine
         }
         else
         {
-            _inputDeviceName = AudioDevices.NameOf(capture);
             try
             {
-                _mic = new WasapiStream(capture, loopback: false, AudioFormat.MicChannels);
-                _mic.PacketCaptured += packet =>
-                    _micTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
-                _mic.Start(_originSeconds);
+                _mic.Replace(
+                    () => CreateStream(capture, loopback: false, AudioFormat.MicChannels),
+                    stream =>
+                    {
+                        AttachMic(stream);
+                        stream.Start(_originSeconds);
+                    });
+                _inputDeviceName = _mic.Current!.DeviceName;
             }
-            catch (Exception e) when (e is System.Runtime.InteropServices.COMException
-                                           or InvalidOperationException
-                                           or UnauthorizedAccessException)
+            catch (Exception e) when (RestartFault.IsDeviceFault(e))
             {
-                _mic?.Dispose();
-                _mic = null;
+                _mic.Clear();
                 _mode = CaptureMode.SystemOnly;
             }
         }
 
-        _system = new WasapiStream(render, loopback: true, AudioFormat.SystemChannels);
-        _system.PacketCaptured += packet =>
-            _systemTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
-        _system.Start(_originSeconds);
+        _system.Replace(
+            () => CreateStream(render, loopback: true, AudioFormat.SystemChannels),
+            stream =>
+            {
+                AttachSystem(stream);
+                stream.Start(_originSeconds);
+            });
+        _outputDeviceName = _system.Current!.DeviceName;
 
         _monitor = new DeviceMonitor();
         _monitor.DefaultDeviceChanged += OnDefaultDeviceChanged;
@@ -117,8 +119,8 @@ public sealed class AudioEngine : IAudioEngine
             _monitor = null;
         }
 
-        _mic?.Stop();
-        _system?.Stop();
+        _mic.Current?.Stop();
+        _system.Current?.Stop();
 
         // Довжину визначає тривалість сесії, а не останній пакет, який випадково
         // прилетів: потік міг замовкнути задовго до натискання «Зупинити».
@@ -128,7 +130,7 @@ public sealed class AudioEngine : IAudioEngine
 
         var frames = Math.Min(_micTrack?.TotalFrames ?? 0, _systemTrack?.TotalFrames ?? 0);
         var durationMs = (int)Math.Round(frames * 1000.0 / AudioFormat.SampleRate);
-        var systemAudioDetected = _system?.SawRealAudio ?? false;
+        var systemAudioDetected = _system.Current?.SawRealAudio ?? false;
 
         _micTrack?.Dispose();
         _systemTrack?.Dispose();
@@ -167,10 +169,8 @@ public sealed class AudioEngine : IAudioEngine
             _monitor = null;
         }
 
-        _mic?.Dispose();
-        _mic = null;
-        _system?.Dispose();
-        _system = null;
+        _mic.Clear();
+        _system.Clear();
         _micTrack?.Dispose();
         _micTrack = null;
         _systemTrack?.Dispose();
@@ -195,8 +195,23 @@ public sealed class AudioEngine : IAudioEngine
         Check(_mic, ref _lastMicClock, isLoopback: false);
     }
 
-    private void Check(WasapiStream? stream, ref ulong lastClock, bool isLoopback)
+    private void Check(StreamSlot<WasapiStream> slot, ref ulong lastClock, bool isLoopback)
     {
+        if (slot.NeedsRetry)
+        {
+            try
+            {
+                _restartGate.TryRun(() => Restart(isLoopback));
+            }
+            catch (Exception e) when (RestartFault.IsDeviceFault(e))
+            {
+                // The next watchdog check will retry the failed slot.
+            }
+
+            return;
+        }
+
+        var stream = slot.Current;
         if (stream is null)
         {
             return;
@@ -223,38 +238,42 @@ public sealed class AudioEngine : IAudioEngine
         }
     }
 
-    private void Restart(bool isLoopback)
+    private bool Restart(bool isLoopback)
     {
         if (isLoopback)
         {
             var device = AudioDevices.DefaultRender();
             if (device is null)
             {
-                return;
+                return false;
             }
 
-            _system?.Dispose();
-            _system = new WasapiStream(device, loopback: true, AudioFormat.SystemChannels);
-            _system.PacketCaptured += packet =>
-                _systemTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
-            _system.Start(_originSeconds);
-            _outputDeviceName = _system.DeviceName;
+            _system.Replace(
+                () => CreateStream(device, loopback: true, AudioFormat.SystemChannels),
+                stream =>
+                {
+                    AttachSystem(stream);
+                    stream.Start(_originSeconds);
+                });
+            _outputDeviceName = _system.Current!.DeviceName;
+            return true;
         }
-        else
+
+        var capture = AudioDevices.DefaultCapture();
+        if (capture is null)
         {
-            var device = AudioDevices.DefaultCapture();
-            if (device is null)
-            {
-                return;
-            }
-
-            _mic?.Dispose();
-            _mic = new WasapiStream(device, loopback: false, AudioFormat.MicChannels);
-            _mic.PacketCaptured += packet =>
-                _micTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
-            _mic.Start(_originSeconds);
-            _inputDeviceName = _mic.DeviceName;
+            return false;
         }
+
+        _mic.Replace(
+            () => CreateStream(capture, loopback: false, AudioFormat.MicChannels),
+            stream =>
+            {
+                AttachMic(stream);
+                stream.Start(_originSeconds);
+            });
+        _inputDeviceName = _mic.Current!.DeviceName;
+        return true;
     }
 
     private void OnDefaultDeviceChanged(string? input, string? output)
@@ -272,17 +291,12 @@ public sealed class AudioEngine : IAudioEngine
 
         try
         {
-            if (input is not null)
+            DeviceSwitch.Apply(input, output, isLoopback =>
             {
-                _inputDeviceName = input;
-                _restartGate.TryRun(() => Restart(isLoopback: false));
-            }
-
-            if (output is not null)
-            {
-                _outputDeviceName = output;
-                _restartGate.TryRun(() => Restart(isLoopback: true));
-            }
+                var restartRan = false;
+                var gateOpened = _restartGate.TryRun(() => restartRan = Restart(isLoopback));
+                return gateOpened && restartRan;
+            });
         }
         catch (Exception e) when (RestartFault.IsDeviceFault(e))
         {
@@ -291,5 +305,30 @@ public sealed class AudioEngine : IAudioEngine
         }
 
         DeviceChanged?.Invoke(this, change);
+    }
+
+    private static WasapiStream CreateStream(NAudio.CoreAudioApi.MMDevice device, bool loopback, int channels)
+    {
+        try
+        {
+            return new WasapiStream(device, loopback, channels);
+        }
+        catch
+        {
+            device.Dispose();
+            throw;
+        }
+    }
+
+    private void AttachMic(WasapiStream stream)
+    {
+        stream.PacketCaptured += packet =>
+            _micTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
+    }
+
+    private void AttachSystem(WasapiStream stream)
+    {
+        stream.PacketCaptured += packet =>
+            _systemTrack?.Write(packet.Data, packet.FrameCount, packet.TimestampSeconds);
     }
 }
