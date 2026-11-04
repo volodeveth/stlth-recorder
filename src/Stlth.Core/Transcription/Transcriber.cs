@@ -73,7 +73,7 @@ public sealed partial class Transcriber
             throw new TranscriptionException(reason);
         }
 
-        var lines = new List<Line>();
+        var trackTasks = new List<Task<List<Line>>>();
 
         foreach (var (track, speaker) in new[]
         {
@@ -92,10 +92,15 @@ public sealed partial class Transcriber
             WavRepair.RepairIfNeeded(audio);
 
             progress?.Report($"{Localization.Strings.TranscribeInProgress} {speaker.ToLowerInvariant()}");
-            lines.AddRange(await RunAsync(audio, speaker, cancellation));
+            trackTasks.Add(RunAsync(audio, speaker, cancellation));
         }
 
-        lines.Sort((a, b) => a.At.CompareTo(b.At));
+        var trackLines = await Task.WhenAll(trackTasks);
+        // Task.WhenAll preserves task order, and OrderBy is stable. Equal timestamps
+        // therefore keep mic lines before system lines.
+        var lines = trackLines.SelectMany(result => result)
+                              .OrderBy(line => line.At)
+                              .ToList();
 
         var target = Path.Combine(sessionDir, FileName);
         await File.WriteAllTextAsync(target, Render(sessionDir, lines), Encoding.UTF8, cancellation);
@@ -115,25 +120,10 @@ public sealed partial class Transcriber
     private async Task<List<Line>> RunAsync(string audio, string speaker, CancellationToken cancellation)
     {
         var vad = _models.PathOf(ModelInstaller.Required[1]);
-
-        var arguments = new List<string>
-        {
-            "-m", _models.PathOf(ModelInstaller.Required[0]),
-            "-f", audio,
-            "-l", Localization.Strings.WhisperCode,
-            // Результат читається зі stdout, тож жодних вихідних файлів не просимо.
-            // `--output-txt` тут був би не просто зайвим, а шкідливим: це булевий
-            // перемикач без значення, і дописане до нього «false» whisper прийняв би
-            // за ще одне ім'я аудіофайлу.
-            "--no-prints",
-            // VAD — не оздоба: без нього модель заповнює тишу вигадкою, а зустріч
-            // здебільшого з тиші й складається.
-            "--vad",
-            "--vad-model", vad,
-            "--vad-threshold", "0.5",
-            // Придушення нерозмовних токенів прибирає решту сміття, яке VAD пропустив.
-            "--suppress-nst",
-        };
+        var arguments = BuildArguments(
+            _models.PathOf(ModelInstaller.Required[0]), audio,
+            Localization.Strings.WhisperCode, vad,
+            TranscriptionLoad.ThreadsPerTrack(Environment.ProcessorCount));
 
         var startInfo = new ProcessStartInfo(_executable)
         {
@@ -150,6 +140,14 @@ public sealed partial class Transcriber
         }
 
         using var process = Launch(startInfo);
+        try
+        {
+            process.PriorityClass = TranscriptionLoad.Priority;
+        }
+        catch
+        {
+            // Зміна пріоритету не повинна переривати транскрибацію.
+        }
 
         var output = await process.StandardOutput.ReadToEndAsync(cancellation);
         var errors = await process.StandardError.ReadToEndAsync(cancellation);
@@ -174,6 +172,31 @@ public sealed partial class Transcriber
         }
 
         return lines;
+    }
+
+    internal static List<string> BuildArguments(string model, string audio, string language,
+                                                string vadModel, int threads)
+    {
+        return new List<string>
+        {
+            "-m", model,
+            "-f", audio,
+            "-l", language,
+            // Результат читається зі stdout, тож жодних вихідних файлів не просимо.
+            // `--output-txt` тут був би не просто зайвим, а шкідливим: це булевий
+            // перемикач без значення, і дописане до нього «false» whisper прийняв би
+            // за ще одне ім'я аудіофайлу.
+            "--no-prints",
+            // VAD — не оздоба: без нього модель заповнює тишу вигадкою, а зустріч
+            // здебільшого з тиші й складається.
+            "--vad",
+            "--vad-model", vadModel,
+            "--vad-threshold", "0.5",
+            // Придушення нерозмовних токенів прибирає решту сміття, яке VAD пропустив.
+            "--suppress-nst",
+            // Кількість потоків на доріжку обмежує навантаження під час розпізнавання.
+            "-t", threads.ToString(CultureInfo.InvariantCulture),
+        };
     }
 
     /// <summary>
