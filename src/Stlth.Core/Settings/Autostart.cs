@@ -54,8 +54,17 @@ public static class Autostart
     /// просто мовчки зникав.
     /// </summary>
     /// <returns><c>null</c>, якщо робочої команди скласти не вдалося.</returns>
-    public static string? LaunchCommand() =>
-        CommandFor(Environment.ProcessPath, System.Reflection.Assembly.GetEntryAssembly()?.Location);
+    public static string? LaunchCommand()
+    {
+        var hostPath = Environment.ProcessPath;
+        // IL3000 тут очікуваний і нешкідливий: у самодостатній збірці хост — це
+        // власний apphost, і CommandFor до assemblyPath не доходить. Шлях потрібен
+        // лише framework-dependent запуску через dotnet, де Location заповнений.
+#pragma warning disable IL3000
+        var assemblyPath = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+#pragma warning restore IL3000
+        return CommandFor(hostPath, assemblyPath);
+    }
 
     /// <summary>
     /// Чиста функція: команда з хоста і збірки. Форма команди перевіряється без
