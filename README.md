@@ -33,32 +33,29 @@ cost that.
 1. Download `STLTH-Recorder-<version>-setup.exe` from the releases page.
 2. Run it. It installs **into your user profile, without administrator rights**.
 
-**About the SmartScreen warning.** The file is not signed with a developer
-certificate, so on first launch Windows shows a blue dialog. That is about the missing
-signature, not about the contents. Click **More info → Run anyway**. Once is enough.
+**Windows security checks.** Unsigned builds may show a SmartScreen warning or be
+blocked by Smart App Control. These are different checks: SmartScreen may offer
+**More info → Run anyway**; Smart App Control has no per-app exception.
 
-A signing certificate costs money and adds no safety for someone building this from
-the repository themselves. If you would rather not click through the warning, take
-`STLTH-Recorder-<version>-portable.zip`: unpack and run, nothing installed.
+Smart App Control can block **the recorder itself**, as well as the installer,
+uninstaller and transcription binaries. A file that ran before may later be blocked.
+A portable ZIP, rebuilding, renaming or retrying an unsigned file does not establish
+lasting trust. On this machine, Code Integrity events confirmed that the installed
+recorder executable was blocked on October 3–5, 2026 despite enabled autostart.
 
-**If Windows refuses to run the installer at all** — "An Application Control policy has
-blocked this file", with no way to proceed — you have **Smart App Control** enabled.
-Unlike SmartScreen it has no "run anyway", and it judges every unsigned binary on its
-own reputation.
+For distribution with Smart App Control enabled, sign application code and native
+dependencies, the installer and the uninstaller with a valid certificate from a
+trusted provider. No such signing identity is currently configured for these builds.
+See [Microsoft's signing guidance](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control).
 
-Two things were observed here, and both are worth knowing:
+For personal use, turning off Smart App Control is a device-wide choice in
+**Windows Security → App & browser control → Smart App Control settings**.
+Microsoft Defender operates separately. Recent Windows updates allow SAC to be
+re-enabled without reinstalling Windows; check the options available on your device.
+See [Microsoft's FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions).
 
-- A fresh build can be blocked where its predecessor was not. Version 1.2.1's installer
-  ran; 1.2.2's was blocked minutes later, while the application executable from the very
-  same build ran fine both times.
-- **The block is not permanent.** The same 1.2.2 installer, unchanged and unsigned, was
-  refused once and accepted a few hours later. The verdict is a moving cloud judgement,
-  not a property of the file.
-
-So if the installer is blocked: try again later, or take the portable ZIP. **The
-application itself is not what gets blocked** — only the installer and the uninstaller
-are, and the portable package needs neither. Unpack it anywhere and run
-`STLTH Recorder.exe`.
+Autostart launches the tray application when you sign in to Windows. It does not
+start recording automatically, and it cannot override a Windows security block.
 
 ## Uninstalling
 
@@ -274,10 +271,9 @@ tested", not "works".
   separate instrument, but there has been no hour of continuous recording to files.
 - **The SmartScreen dialog.** The installer was verified programmatically, not by a
   double click.
-- **Which builds Smart App Control will accept, and when.** It blocked the 1.2.2
-  installer, allowed 1.2.1's, then accepted the very same 1.2.2 file hours later
-  without a single byte changing. The verdict is neither ours to predict nor stable
-  over time, so the portable package is the dependable path on those machines.
+- **Future acceptance of unsigned builds by Smart App Control.** Earlier acceptance
+  of an unsigned file is not a guarantee. The installed recorder was subsequently
+  blocked, so the portable package cannot be described as a dependable remedy.
 
 ## Development
 
