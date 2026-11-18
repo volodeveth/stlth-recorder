@@ -65,7 +65,7 @@ public partial class App : Application
         Controller = new RecorderController(new SessionStore(), dir => new AudioEngine(dir));
         Controller.RecoverInterruptedSessions();
 
-        Autostart.Apply(Settings.StartWithWindows, Environment.ProcessPath ?? "STLTH Recorder.exe");
+        Autostart.Apply(Settings.StartWithWindows);
 
         // Моделі, на які застосунок більше не дивиться, прибираються при старті, а не
         // лише після наступного завантаження: інакше півгігабайта лишається лежати в

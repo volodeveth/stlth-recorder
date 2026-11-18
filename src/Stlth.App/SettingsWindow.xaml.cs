@@ -112,8 +112,7 @@ public partial class SettingsWindow : Window
         ApplyLanguage();
 
         // Реєстр правиться одразу, а не «колись при виході».
-        Core.Settings.Autostart.Apply(App.Settings.StartWithWindows,
-                                      Environment.ProcessPath ?? "STLTH Recorder.exe");
+        Core.Settings.Autostart.Apply(App.Settings.StartWithWindows);
         App.ApplyMeetingReminders();
     }
 
